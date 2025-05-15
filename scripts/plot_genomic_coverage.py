@@ -17,8 +17,16 @@ def parse_fai(fai_file):
 
 
 def compute_binned_coverage(interval_file, chrom, chrom_length, bin_size=1000, slide=1000):
-    df = pd.read_csv(interval_file, sep='\t', names=["chrom", "start", "end"])
-    df = df[df["chrom"] == chrom].sort_values("start").reset_index(drop=True)
+    # Support .tsv and .tsv.gz
+    df = pd.read_csv(
+        interval_file,
+        sep='\t',
+        compression='infer',
+        dtype={"chrom": str, "start": int, "end": int},
+        header=0  # assumes the file includes a header line
+    )
+
+    df = df[df["chromosome"] == chrom].sort_values("start").reset_index(drop=True)
 
     starts = np.arange(0, chrom_length - bin_size + 1, slide)
     coverage = []
@@ -65,7 +73,7 @@ def plot_coverage(midpoints_list, coverage_list, labels, chrom, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate coverage plot for a given chromosome using interval files.")
-    parser.add_argument("--interval-dir", required=True, help="Directory containing interval TSV files")
+    parser.add_argument("--interval-dir", required=True, help="Directory containing interval .tsv[.gz] files")
     parser.add_argument("--fai-file", required=True, help="FASTA index file (.fai) with chromosome lengths")
     parser.add_argument("--chromosome", required=True, help="Chromosome to plot")
     parser.add_argument("--output", required=True, help="Path to save the output plot")
@@ -83,8 +91,14 @@ def main():
     if chrom_length is None:
         raise ValueError(f"Chromosome {chrom} not found in {args.fai_file}")
 
-    interval_files = [os.path.join(args.interval_dir, f) for f in os.listdir(args.interval_dir) if f.endswith(".tsv")]
-    labels = [os.path.splitext(os.path.basename(f))[0] for f in interval_files]
+    # Support both .tsv and .tsv.gz files
+    interval_files = [
+        os.path.join(args.interval_dir, f)
+        for f in os.listdir(args.interval_dir)
+        
+        if f.endswith(".tsv") or f.endswith(".tsv.gz")
+    ]
+    labels = [os.path.splitext(os.path.splitext(os.path.basename(f))[0])[0] for f in interval_files]
 
     midpoints_list = []
     coverage_list = []

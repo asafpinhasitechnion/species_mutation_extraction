@@ -8,24 +8,34 @@ if [ "$#" -lt 4 ]; then
     exit 1
 fi
 
-# === Input arguments ===
+# === Required arguments ===
 REFERENCE=$1
 TAXA1=$2
 TAXA2=$3
 BASE_OUTPUT_DIR=$4
+shift 4  # shift past required args
 
-# === Optional flags ===
+# === Optional arguments ===
 NO_CACHE=false
-if [[ "${5:-}" == "--no-cache" ]]; then
-    NO_CACHE=true
-fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-cache)
+            NO_CACHE=true
+            shift
+            ;;
+        *)
+            echo "❌ Unknown argument: $1"
+            exit 1
+            ;;
+    esac
+done
 
 # === Paths ===
 REF_FASTA="${BASE_OUTPUT_DIR}/${REFERENCE}/${REFERENCE}.fasta"
-BAM1="${BASE_OUTPUT_DIR}/${TAXA1}_to_${REFERENCE}.bam"
-BAM2="${BASE_OUTPUT_DIR}/${TAXA2}_to_${REFERENCE}.bam"
-
-
+BAM_FOLDER="${BASE_OUTPUT_DIR}/BAMs"
+BAM1="${BAM_FOLDER}/${TAXA1}_to_${REFERENCE}.bam"
+BAM2="${BAM_FOLDER}/${TAXA2}_to_${REFERENCE}.bam"
 PILEUP_FILE="${BASE_OUTPUT_DIR}/${REFERENCE}__${TAXA1}__${TAXA2}.pileup.gz"
 
 # === Check existence of input files ===

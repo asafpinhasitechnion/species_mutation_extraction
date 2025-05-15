@@ -2,98 +2,127 @@
 
 set -euo pipefail
 
-# Usage check
+# === Usage check ===
 if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 <species_name> <reference_name> <base_output_dir> [--keep-temp] [--no-cache] [--mapq <value>] [--save-alignment]"
+    echo "Usage: $0 <species_name> <reference_name> <base_output_dir> [--no-cache] [--mapq <value>] [--remove-temp]"
     exit 1
 fi
 
-# Required arguments
+# === Required arguments ===
 SPECIES=$1
 REFERENCE=$2
 BASE_DIR=$3
+shift 3  # Remove positional args
 
-# Optional flags
-KEEP_TEMP=false
+# === Optional flags ===
 NO_CACHE=false
-SAVE_ALIGNMENT=false
+REMOVE_TEMP=false
 MAPQ=""
 
-i=4
-while [ $i -le $# ]; do
-    arg="${!i}"
-    if [[ "$arg" == "--keep-temp" ]]; then
-        KEEP_TEMP=true
-    elif [[ "$arg" == "--no-cache" ]]; then
-        NO_CACHE=true
-    elif [[ "$arg" == "--save-alignment" ]]; then
-        SAVE_ALIGNMENT=true
-    elif [[ "$arg" == "--mapq" ]]; then
-        next=$((i+1))
-        MAPQ="${!next}"
-        i=$((i+1))  # Skip next arg in loop
-    fi
-    i=$((i+1))
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-cache)
+            NO_CACHE=true
+            shift
+            ;;
+        --remove-temp)
+            REMOVE_TEMP=true
+            shift
+            ;;
+        --mapq)
+            if [[ -n "${2:-}" && "$2" != --* ]]; then
+                MAPQ="$2"
+                shift 2
+            else
+                echo "❌ --mapq requires a value"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "❌ Unknown argument: $1"
+            exit 1
+            ;;
+    esac
 done
 
-# Paths
+# === Paths ===
 SPECIES_FASTA="${BASE_DIR}/${SPECIES}/${SPECIES}.fasta"
 REFERENCE_FASTA="${BASE_DIR}/${REFERENCE}/${REFERENCE}.fasta"
+BAM_DIR="${BASE_DIR}/BAMs"
 FASTQ="${BASE_DIR}/${SPECIES}/${SPECIES}_reads_to_${REFERENCE}.fastq"
-RAW_BAM="${BASE_DIR}/${SPECIES}_to_${REFERENCE}_raw.bam"
-BAM="${BASE_DIR}/${SPECIES}_to_${REFERENCE}.bam"
+RAW_BAM="${BAM_DIR}/${SPECIES}_to_${REFERENCE}_raw.bam"
+BAM="${BAM_DIR}/${SPECIES}_to_${REFERENCE}.bam"
 LOG="${BAM%.bam}.log"
 
-# Skip if BAM already exists (unless --no-cache is set)
+# === Input checks ===
+if [[ ! -f "$SPECIES_FASTA" ]]; then
+    echo "❌ Species FASTA not found: $SPECIES_FASTA"
+    exit 1
+fi
+
+if [[ ! -f "$REFERENCE_FASTA" ]]; then
+    echo "❌ Reference FASTA not found: $REFERENCE_FASTA"
+    exit 1
+fi
+
+# === Final BAM caching ===
 if [[ -f "$BAM" && "$NO_CACHE" == false ]]; then
     echo "✅ Final BAM already exists: $BAM"
     exit 0
 fi
 
-# Step 1: Generate FASTQ
-echo "🔧 Generating FASTQ from $SPECIES_FASTA → $FASTQ"
-python create_fastq_fragments.py "$SPECIES_FASTA" --output "$FASTQ" --force
+mkdir -p "$BAM_DIR"
 
-# Step 2: Set filtering command
+# === FASTQ caching ===
+if [[ -f "$FASTQ" && "$NO_CACHE" == false ]]; then
+    echo "📂 Reusing existing FASTQ file: $FASTQ"
+else
+    echo "🔧 Generating FASTQ from $SPECIES_FASTA → $FASTQ"
+    python create_fastq_fragments.py "$SPECIES_FASTA" --output "$FASTQ" --force
+fi
+
+# === Prepare filter command ===
 FILTER_CMD="python filter_sam.py -"
 if [[ -n "$MAPQ" ]]; then
     FILTER_CMD+=" --mapq $MAPQ"
 fi
 
-# Step 3: Align, filter, and sort (with optional saving of raw BAM)
 CORES=$(nproc)
-if [[ "$SAVE_ALIGNMENT" == true ]]; then
-    echo "📡 Saving raw BAM before filtering..."
-    bwa mem "$REFERENCE_FASTA" "$FASTQ" \
-      | samtools sort -@ "$CORES" -o "$RAW_BAM"
-    samtools index "$RAW_BAM"
-    echo "✅ Raw BAM saved: $RAW_BAM"
 
-    echo "🔬 Filtering $RAW_BAM and writing final BAM..."
+# === Alignment and filtering logic ===
+if [[ "$REMOVE_TEMP" == false ]]; then
+    # Use cached raw BAM if exists
+    if [[ -f "$RAW_BAM" && "$NO_CACHE" == false ]]; then
+        echo "📡 Using cached raw BAM: $RAW_BAM"
+    else
+        echo "📡 Aligning and saving raw BAM..."
+        bwa mem "$REFERENCE_FASTA" "$FASTQ" \
+            | samtools sort -@ "$CORES" -o "$RAW_BAM"
+        samtools index "$RAW_BAM"
+        echo "✅ Raw BAM saved: $RAW_BAM"
+    fi
+
+    echo "🔬 Filtering $RAW_BAM to produce final BAM..."
     samtools view -h "$RAW_BAM" \
-      | eval "$FILTER_CMD" 2> "$LOG" \
-      | samtools sort -@ "$CORES" -o "$BAM"
+        | eval "$FILTER_CMD" 2> "$LOG" \
+        | samtools sort -@ "$CORES" -o "$BAM"
+
 else
     echo "🔄 Aligning, filtering, and sorting in stream..."
     bwa mem "$REFERENCE_FASTA" "$FASTQ" \
-      | eval "$FILTER_CMD" 2> "$LOG" \
-      | samtools sort -@ "$CORES" -o "$BAM"
+        | eval "$FILTER_CMD" 2> "$LOG" \
+        | samtools sort -@ "$CORES" -o "$BAM"
+    if [[ "$REMOVE_TEMP" == true && -f "$FASTQ" ]]; then
+        rm "$FASTQ"
+    fi
+
 fi
 
-# Step 4: Index BAM
+# === Index final BAM ===
 echo "📌 Indexing final BAM..."
 samtools index "$BAM"
 
-# Step 5: Cleanup
-if ! $KEEP_TEMP; then
-    rm -f "$FASTQ"
-    echo "🧹 Removed intermediate FASTQ: $FASTQ"
-else
-    echo "🗃️ Keeping intermediate FASTQ (--keep-temp enabled)"
-fi
-
+# === Done ===
 echo "✅ Finished: $BAM"
 echo "📄 Filter stats written to: $LOG"
-if [[ "$SAVE_ALIGNMENT" == true ]]; then
-    echo "📁 Unfiltered alignment saved: $RAW_BAM"
-fi
+[[ "$REMOVE_TEMP" == false ]] && echo "📁 Unfiltered alignment saved: $RAW_BAM"

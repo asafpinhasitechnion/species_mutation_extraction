@@ -134,7 +134,7 @@ PLOT_DIR="$BASE_OUTPUT_DIR/Plots"
 mkdir -p "$PLOT_DIR"
 
 # Plot coverage only
-python plot_coverage_chrom.py \
+python plot_genomic_coverage.py \
   --output-dir "$BASE_OUTPUT_DIR" \
   --chromosome "$CHROMOSOME" \
   --bin-size 100000 \

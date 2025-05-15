@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument("taxa2", help="Taxa 2 name")
     parser.add_argument("--pileup-dir", help="Directory containing the pileup.gz file")
     parser.add_argument("--output-dir", help="Directory to write summary JSONs")
-    parser.add_argument("--full-output-dir", help="Directory to write full gzipped mutation CSVs per species")
+    parser.add_argument("--no-full-mutations", action="store_true", help="Don't write full gzipped mutation CSVs per species")
     parser.add_argument("--no-cache", action="store_true", help="Force regeneration of outputs")
     return parser.parse_args()
 
@@ -67,17 +67,18 @@ def parse_line(line):
 def main():
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
-    if args.full_output_dir:
-        os.makedirs(args.full_output_dir, exist_ok=True)
 
     pileup_file = os.path.join(args.pileup_dir, f"{args.reference}__{args.taxa1}__{args.taxa2}.pileup.gz")
     out_json1 = os.path.join(args.output_dir, f"{args.taxa1}__{args.taxa2}__{args.reference}__mutations.json")
     out_json2 = os.path.join(args.output_dir, f"{args.taxa2}__{args.taxa1}__{args.reference}__mutations.json")
 
-    csv_path1 = os.path.join(args.full_output_dir, f"{args.taxa1}__{args.taxa2}__{args.reference}__mutations.csv.gz") if args.full_output_dir else None
-    csv_path2 = os.path.join(args.full_output_dir, f"{args.taxa2}__{args.taxa1}__{args.reference}__mutations.csv.gz") if args.full_output_dir else None
+    csv_path1 = os.path.join(args.output_dir, f"{args.taxa1}__{args.taxa2}__{args.reference}__mutations.csv.gz") if not args.no_full_mutations else None
+    csv_path2 = os.path.join(args.output_dir, f"{args.taxa2}__{args.taxa1}__{args.reference}__mutations.csv.gz") if not args.no_full_mutations else None
+    
+    jsons_exist = all(os.path.exists(p) for p in [out_json1, out_json2])
+    csvs_exist = not args.no_full_mutations and all(os.path.exists(p) for p in [csv_path1, csv_path2])
 
-    if all(os.path.exists(p) for p in [out_json1, out_json2]) and not args.no_cache:
+    if not args.no_cache and jsons_exist and (args.no_full_mutations or csvs_exist):
         print("✅ Mutation counts already exist. Skipping.")
         return
 
