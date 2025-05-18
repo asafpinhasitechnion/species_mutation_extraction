@@ -2,6 +2,8 @@ import sys
 import os
 import subprocess
 from pathlib import Path
+import json
+from datetime import datetime
 
 def run_cmd(cmd, shell=False):
     print(f"➡️ Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
@@ -9,6 +11,20 @@ def run_cmd(cmd, shell=False):
     if result.returncode != 0:
         print(f"❌ Command failed: {cmd}")
         sys.exit(result.returncode)
+
+
+def write_metadata(args_dict, output_dir):
+    metadata = {
+        "timestamp": datetime.now().isoformat(),
+        "arguments": args_dict
+    }
+
+    metadata_path = Path(output_dir) / "metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    print(f"📝 Metadata written to {metadata_path}")
+
 
 def parse_args():
     if len(sys.argv) < 7:
@@ -26,7 +42,7 @@ def parse_args():
     i = 0
     while i < len(optional_args):
         arg = optional_args[i]
-        if arg in ["--keep-temp"]:
+        if arg in ["--remove-temp"]:
             align_filter_args.append(arg)
             pileup_args.append(arg)
             i += 1
@@ -46,6 +62,9 @@ def parse_args():
         elif arg == "--no-full-mutations":
             mutation_args.append(arg)
             i += 1
+        elif arg == "--aligner":
+            align_filter_args.extend([arg, optional_args[i + 1]])
+            i += 2
         elif arg == '--genomic-position-plots':
             global GENOMIC_PLOTS
             GENOMIC_PLOTS = True
@@ -89,6 +108,7 @@ def main():
 
     print(f"📁 Run ID: {run_id}")
     print(f"📂 Base output directory: {base_output_dir}")
+    write_metadata(args, base_output_dir)
 
     # === GENOME DOWNLOADS ===
     print("⬇️ Downloading genomes...")
@@ -190,6 +210,17 @@ def main():
                 "--chromosome", chrom,
                 "--mutation-category", r"[ACTG][C>T]G",
                 "--output-dir", str(base_output_dir / "Plots")
+            ])
+
+                    # === CLEANUP ===
+        if "--remove-temp" in sys.argv:
+            print("🧹 Cleaning up intermediate files...")
+            run_cmd([
+                "bash", "cleanup_output.sh", str(base_output_dir),
+                "--pileup", "--genomes",
+                "--t1", args["t1_name"],
+                "--t2", args["t2_name"],
+                "--out", args["out_name"]
             ])
 
 

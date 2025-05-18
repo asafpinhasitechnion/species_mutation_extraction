@@ -76,7 +76,6 @@ def main():
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
-
     pileup_path = os.path.join(args.pileup_dir, f"{args.reference}__{args.taxa1}__{args.taxa2}.pileup.gz")
     json1_path = os.path.join(args.output_dir, f"{args.taxa1}__{args.taxa2}__{args.reference}__5mers.json")
     json2_path = os.path.join(args.output_dir, f"{args.taxa2}__{args.taxa1}__{args.reference}__5mers.json")

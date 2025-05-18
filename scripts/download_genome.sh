@@ -41,4 +41,7 @@ fi
 mv "$FASTA_SOURCE" "$FASTA_FILE"
 echo "✅ FASTA saved at: $FASTA_FILE"
 
+echo "🧹 Stripping FASTA headers (keeping only first word)..."
+sed -i 's/ .*$//' "$FASTA_FILE"
+
 rm -rf "$TEMP_DIR"
