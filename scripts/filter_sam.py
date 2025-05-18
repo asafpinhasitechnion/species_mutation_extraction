@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import os
 import sys
 import argparse
+import matplotlib.pyplot as plt
 
 # Constants
 low_mapq_threshold = 5
@@ -15,6 +17,7 @@ def parse_args():
                         help=f"MAPQ threshold (default: {default_mapq_threshold})")
     parser.add_argument("--offset", type=int, default=default_offset,
                         help=f"Expected distance between consecutive reads (default: {default_offset})")
+    parser.add_argument("--mapq-hist-folder", help=f"Folder for saving MAPQ histogram")
     return parser.parse_args()
 
 # Counters for reporting
@@ -23,6 +26,8 @@ kept_reads = 0
 filtered_mapq = 0
 filtered_disjoint = 0
 filtered_chr = 0
+mapq_values = []
+
 
 def filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, mapq_threshold, offset):
     global total_reads, kept_reads, filtered_mapq, filtered_disjoint, filtered_chr
@@ -64,6 +69,8 @@ def main():
             chr = fields[2]
             pos = int(fields[3])
             mapq = int(fields[4])
+            mapq_values.append(mapq)
+
         except ValueError:
             print(f"⚠️ Invalid line {i+1}: POS={fields[3]} MAPQ={fields[4]}", file=sys.stderr)
             continue
@@ -97,6 +104,21 @@ def main():
     print(f"  Filtered (low MAPQ):     {filtered_mapq}", file=sys.stderr)
     print(f"  Filtered (disjoint):     {filtered_disjoint}", file=sys.stderr)
     print(f"  Filtered (alt contigs):  {filtered_chr}", file=sys.stderr)
+
+    if args.mapq_hist_folder:
+        # Plot MAPQ histogram with log-scaled y-axis
+        plt.figure(figsize=(8, 5))
+        plt.hist(mapq_values, bins=50, color='steelblue', edgecolor='black', log=True)
+        plt.title("MAPQ Score Distribution")
+        plt.xlabel("MAPQ")
+        plt.ylabel("Read Count (log scale)")
+        plt.tight_layout()
+        # Save to specified folder
+        os.makedirs(args.mapq_hist_folder, exist_ok=True)
+        out_path = os.path.join(args.mapq_hist_folder, 'mapq_histogram.png')
+        plt.savefig(out_path)
+        print(f"📊 MAPQ histogram saved to {out_path}", file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()

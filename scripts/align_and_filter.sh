@@ -59,6 +59,7 @@ done
 SPECIES_FASTA="${BASE_DIR}/${SPECIES}/${SPECIES}.fasta"
 REFERENCE_FASTA="${BASE_DIR}/${REFERENCE}/${REFERENCE}.fasta"
 BAM_DIR="${BASE_DIR}/BAMs"
+PLOTS_DIR="${BASE_DIR}/Plots"
 FASTQ="${BASE_DIR}/${SPECIES}/${SPECIES}_reads_to_${REFERENCE}.fastq"
 RAW_BAM="${BAM_DIR}/${SPECIES}_to_${REFERENCE}_raw_${ALIGNER}.bam"
 BAM="${BAM_DIR}/${SPECIES}_to_${REFERENCE}.bam"
@@ -100,6 +101,7 @@ fi
 FILTER_CMD="python filter_sam.py -"
 if [[ -n "$MAPQ" ]]; then
     FILTER_CMD+=" --mapq $MAPQ"
+    FILTER_CMD+=" --mapq-hist-folder $PLOTS_DIR"
 fi
 
 CORES=$(nproc)
