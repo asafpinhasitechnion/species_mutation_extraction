@@ -37,7 +37,8 @@ def parse_args():
     # === Argument groups ===
     download_args, index_args = [], []
     align_filter_args, pileup_args, mutation_args, triplet_args, interval_args = [], [], [], [], []
-
+    global GENOMIC_PLOTS
+    GENOMIC_PLOTS = False
 
     i = 0
     while i < len(optional_args):
@@ -65,8 +66,10 @@ def parse_args():
         elif arg == "--aligner":
             align_filter_args.extend([arg, optional_args[i + 1]])
             i += 2
+        elif arg == "--aligner-cmd":
+            align_filter_args.extend([arg, optional_args[i + 1]])
+            i += 2
         elif arg == '--genomic-position-plots':
-            global GENOMIC_PLOTS
             GENOMIC_PLOTS = True
             i += 1
         else:
@@ -122,10 +125,10 @@ def main():
 
     # ALIGNMENTS
     print(f"🔗 Aligning {args['t1_name']} to {args['out_name']}")
-    run_cmd(["bash", "align_and_filter.sh", args["t1_name"], args["out_name"], str(base_output_dir)] + args["align_filter_args"])
+    run_cmd(["bash", "customizable_align_and_filter.sh", args["t1_name"], args["out_name"], str(base_output_dir)] + args["align_filter_args"])
 
     print(f"🔗 Aligning {args['t2_name']} to {args['out_name']}")
-    run_cmd(["bash", "align_and_filter.sh", args["t2_name"], args["out_name"], str(base_output_dir)] + args["align_filter_args"])
+    run_cmd(["bash", "customizable_align_and_filter.sh", args["t2_name"], args["out_name"], str(base_output_dir)] + args["align_filter_args"])
 
     print(f"✅ Alignment and filtering complete for {run_id}")
 
