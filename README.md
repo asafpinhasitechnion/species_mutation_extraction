@@ -36,7 +36,7 @@ The tool is increadibly lightweight compared to stadard multiple species aligner
 ### Step 3: Mutation Detection
 - Generate a pileup of reference + aligned BAMs
 - Extract unambiguous triplet mutation events
-- Optionally: extract all triplet contexts (not just mutated)
+- Optionally: extract the full mutations list, including genomic position
 
 ### Step 4: Normalization & Analysis
 - Normalize mutation counts by underlying triplet abundance
