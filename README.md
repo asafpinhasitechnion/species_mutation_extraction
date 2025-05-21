@@ -16,8 +16,9 @@ The pipeline identifies positions in the genome where:
 This allows the extraction of **unambiguous point mutations** in triplet format, enabling detailed mutation spectrum analysis. 
 The distribution of mutation spectra, mutation rates and mutation types across the reference genome can be visualized and processed.
 
-### 🔁 Reference-Based Alignment Strategy
-Each non-outgroup species is aligned independently to a shared **reference genome (outgroup)**. This avoids full multiple alignment and makes the process **scalable**. 
+### 🔁 Distributed Alignment Strategy Using "Pseudo-Reads"
+Each non-outgroup species is aligned independently to a shared **reference genome (outgroup)**. This avoids full multiple alignment and makes the process **scalable**, while minimizing the notorious MSA reference-bias. 
+The tool uses state-of-the-art local aligners, normaly used aligning DNA sequencing reads to a reference genome, optimized for efficiency.
 The tool is increadibly lightweight compared to standard whole-genome multiple sequence aligners, making it **increadibly fit for parallel running** across different species groups.
 
 ---
