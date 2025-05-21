@@ -18,7 +18,7 @@ The distribution of mutation spectra, mutation rates and mutation types across t
 
 ### 🔁 Reference-Based Alignment Strategy
 Each non-outgroup species is aligned independently to a shared **reference genome (outgroup)**. This avoids full multiple alignment and makes the process **scalable**. 
-The tool is increadibly lightweight compared to stadard multiple species aligner, making it **increadibly fit for parallel running** across different species groups.
+The tool is increadibly lightweight compared to standard whole-genome multiple sequence aligners, making it **increadibly fit for parallel running** across different species groups.
 
 ---
 
@@ -32,6 +32,7 @@ The tool is increadibly lightweight compared to stadard multiple species aligner
 - Simulate FASTQ reads by sliding a window across the genome
 - Align simulated reads to the outgroup
 - Filter alignments by MAPQ and coverage
+- Allows user to customize the aligner and its parameters
 
 ### Step 3: Mutation Detection
 - Generate a pileup of reference + aligned BAMs
