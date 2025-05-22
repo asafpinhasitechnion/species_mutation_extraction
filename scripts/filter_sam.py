@@ -5,7 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 
 # Constants
-low_mapq_threshold = 5
+low_mapq_threshold = 1
 default_mapq_threshold = 60
 default_offset = 75
 
@@ -13,6 +13,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Filter SAM file based on MAPQ and read continuity.")
     parser.add_argument("input_sam", help="Input SAM file or '-' for stdin")
     parser.add_argument("--output", "-o", help="Output SAM file (default: stdout)")
+    parser.add_argument("--low-mapq", type=int, default=low_mapq_threshold,
+                    help=f"MAPQ threshold (default: {low_mapq_threshold})")
     parser.add_argument("--mapq", type=int, default=default_mapq_threshold,
                         help=f"MAPQ threshold (default: {default_mapq_threshold})")
     parser.add_argument("--offset", type=int, default=default_offset,
@@ -29,14 +31,14 @@ filtered_chr = 0
 mapq_values = []
 
 
-def filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, mapq_threshold, offset):
+def filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, low_mapq, mapq_threshold, offset):
     global total_reads, kept_reads, filtered_mapq, filtered_disjoint, filtered_chr
     for line, pos, mapq, chr in zip(cur_lines, cur_pos, cur_mapq, cur_chr):
         total_reads += 1
         if any(keyword in chr for keyword in ['Un', 'random', 'alt', 'fix', 'hap']):
             filtered_chr += 1
             continue
-        if mapq < low_mapq_threshold:
+        if mapq < low_mapq:
             filtered_mapq += 1
             continue
         if mapq >= mapq_threshold or pos - offset in prev_pos + next_pos or pos + offset in prev_pos + next_pos:
@@ -81,7 +83,7 @@ def main():
             next_mapq.append(mapq)
             next_chr.append(chr)
         else:
-            filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, args.mapq, args.offset)
+            filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, args.low_mapq, args.mapq, args.offset)
             prev_lines, cur_lines, next_lines = cur_lines, next_lines, [line]
             prev_pos, cur_pos, next_pos = cur_pos, next_pos, [pos]
             prev_mapq, cur_mapq, next_mapq = cur_mapq, next_mapq, [mapq]
@@ -89,7 +91,7 @@ def main():
             prev_read, cur_read, next_read = cur_read, next_read, read_name
 
     # Final batch
-    filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, args.mapq, args.offset)
+    filter_read(prev_pos, cur_pos, next_pos, cur_mapq, cur_chr, cur_lines, outfile, args.low_mapq, args.mapq, args.offset)
 
     # Cleanup
     if args.output:
