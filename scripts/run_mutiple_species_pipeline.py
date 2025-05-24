@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 from Bio import Phylo
 from io import StringIO
+from ete3 import Tree
+
 
 def run_cmd(cmd, shell=False):
     print(f"➡️ Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
@@ -39,7 +41,7 @@ def parse_args():
 
     newick_tree = "(Leptophobia_aripa|GCA_951799465.1, (Pieris_brassicae|GCF_905147105.1, (Pieris_napi|GCF_905475465.1, (Pieris_rapae|GCF_905147795.1, Pieris_mannii|GCA_028984075.1))));"
     run_id = 'test_run_mutiple_species'
-    optional_args = ['--mapq', '1']
+    optional_args = ['--mapq', '1', '--no-cache']
 
     # === Argument groups ===
     download_args, index_args = [], []
@@ -136,66 +138,68 @@ def parse_species_accession_from_newick(newick_str):
 
     return species_accession_dict, outgroup
 
-# ... existing code ...
+
 def annotate_tree_with_indices(newick_str, outgroup_name, file_path=None):
     """
-    Traverses the Newick tree, annotates each node with an index.
+    Traverses the Newick tree using ete3, annotates each node with an index.
     Terminal nodes: 0 - outgroup, 1, 2, ... for the rest.
     Internal nodes: Node(idx).
     Returns:
       - tree (with .index and .custom_name on each node)
-      - terminal_mapping: {species_name <-> idx} (bidirectional for terminals only, using only species_name)
+      - terminal_mapping: {species_name <-> idx} (bidirectional for terminals only)
     If file_path is provided, saves the annotated tree (as newick) and the mapping (as json)
     with suffixes '_annotated.nwk' and '_mapping.json'.
     """
-    import json
-    import os
+    # Step 1: Load tree
+    tree = Tree(newick_str, format=1)
 
-    tree = Phylo.read(StringIO(newick_str), "newick")
-    terminals = tree.get_terminals()
+    # Step 2: Clean names (strip suffix after "|")
+    for leaf in tree.iter_leaves():
+        if '|' in leaf.name:
+            leaf.name = leaf.name.split('|', 1)[0]
 
-    # Helper to get species_name from node name
-    def get_species_name(node):
-        return node.name.split('|')[0] if '|' in node.name else node.name
+    # Step 3: Sort terminals (outgroup first)
+    terminals = tree.get_leaves()
+    sorted_terminals = [t for t in terminals if t.name == outgroup_name] + \
+                       sorted([t for t in terminals if t.name != outgroup_name], key=lambda x: x.name)
 
-    # Sort terminals: outgroup first, then the rest (alphabetically for consistency)
-    sorted_terminals = [t for t in terminals if get_species_name(t) == outgroup_name] + \
-                      sorted([t for t in terminals if get_species_name(t) != outgroup_name], key=lambda x: get_species_name(x))
-
+    # Step 4: Assign terminal indices and build mapping
     terminal_mapping = {}
-    # Assign indices to terminals, mapping only species_name <-> idx
     for idx, node in enumerate(sorted_terminals):
-        node.index = idx
-        node.custom_name = node.name
-        species_name = get_species_name(node)
+        node.add_feature("index", idx)
+        node.add_feature("custom_name", node.name)
+        species_name = node.name
         terminal_mapping[idx] = species_name
         terminal_mapping[species_name] = idx
 
-    # Assign indices and names to internal nodes (postorder, after terminals)
+    # Step 5: Assign internal node indices
     next_internal_idx = len(sorted_terminals)
-    for node in tree.find_clades(order='postorder'):
-        if not node.is_terminal():
-            node.index = next_internal_idx
-            node.custom_name = f"Node({next_internal_idx})"
+    for node in tree.traverse("postorder"):
+        if not node.is_leaf():
+            node.add_feature("index", next_internal_idx)
+            node.add_feature("custom_name", f"Node({next_internal_idx})")
             next_internal_idx += 1
 
+    # Step 6: Output to files (if needed)
     if file_path is not None:
-        # Save annotated tree as newick with indices in the node names
-        # We'll temporarily set .name to .custom_name for output
-        orig_names = {}
-        for node in tree.find_clades():
-            orig_names[node] = node.name
+        # Temporarily rename nodes to custom_name for writing
+        original_names = {}
+        for node in tree.traverse():
+            original_names[node] = node.name
             node.name = getattr(node, "custom_name", node.name)
-        annotated_tree_path = f"{os.path.splitext(file_path)[0]}_annotated.nwk"
-        Phylo.write(tree, annotated_tree_path, "newick")
-        # Restore original names
-        for node in tree.find_clades():
-            node.name = orig_names[node]
 
-        # Save mapping as json
+        annotated_tree_path = f"{os.path.splitext(file_path)[0]}_annotated.nwk"
+        tree.write(format=1, outfile=annotated_tree_path)
+
+        # Restore original names
+        for node in tree.traverse():
+            node.name = original_names[node]
+
+        # Save mapping as JSON
         mapping_path = f"{os.path.splitext(file_path)[0]}_mapping.json"
         with open(mapping_path, "w") as f:
             json.dump(terminal_mapping, f, indent=2)
+
         print(f"📝 Annotated tree saved to {annotated_tree_path}")
         print(f"📝 Terminal mapping saved to {mapping_path}")
 
@@ -240,12 +244,9 @@ def main():
         for idx in sorted(k for k in terminal_mapping if isinstance(k, int) and k != 0)
     ]
 
-    print(ordered_taxa)
-    print(tree)
-    print(terminal_mapping)
     # PILEUP
-    # print("📊 Creating pileup...")
-    # run_cmd(["bash", "create_multiple_species_pileup.sh", outgroup, str(base_output_dir)] + ordered_taxa + args["pileup_args"])
+    print("📊 Creating pileup...")
+    run_cmd(["bash", "create_multiple_species_pileup.sh", outgroup, str(base_output_dir)] + ordered_taxa + args["pileup_args"])
 
     # # MUTATIONS
     # print("🧪 Extracting mutations...")
