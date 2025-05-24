@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import pandas as pd
 from ete3 import Tree
-from run_mutiple_species_pipeline import annotate_tree_with_indices
+from multiple_species_utils import annotate_tree_with_indices
 
 
 def write_phylip_infile(df, outfile):
@@ -44,7 +44,7 @@ def extract_parsimony_score(outfile_path):
                     return float(match.group(1))
     raise ValueError(f"Could not find parsimony score in {outfile_path}")
 
-def run_phylip_command(df, output_dir, exe_path, tree=None, prefix="run1", phylip_input_args="Y\n"):
+def run_phylip_command(df, output_dir, exe_path, tree=None, prefix="run1", phylip_input_args="Y\n", remove_infile=True):
     exe_path = os.path.abspath(exe_path)
     os.makedirs(output_dir, exist_ok=True)
     cwd = os.getcwd()
@@ -84,11 +84,25 @@ def run_phylip_command(df, output_dir, exe_path, tree=None, prefix="run1", phyli
         shutil.move("outtree", new_tree)
         out_paths['outtree'] = os.path.abspath(new_tree)
 
+    if remove_infile and os.path.exists("infile"):
+        os.remove("infile")
+
     os.chdir(cwd)
     return out_paths
 
 
-def run_phylip(command, df, tree, output_dir, prefix, input_string, mapping=None):
+def run_phylip(command, df_path, tree_path, output_dir, prefix, input_string, mapping):
+
+    df = pd.read_csv(df_path, index_col=0).astype(str)
+    tree = Tree(tree_path, format=1) if tree_path else None
+
+    if tree is not None and mapping is not None:
+        for node in tree.iter_leaves():
+            if node.name in mapping:
+                node.name = f"taxa{mapping[node.name]}"
+            else:
+                raise ValueError(f"Species name '{node.name}' not found in mapping.")
+
     exe_path = os.path.abspath(f"./phylip-3.697/exe/{command}")
 
     no_tree_dir = os.path.join(output_dir, f"{prefix}_no_tree")
@@ -140,7 +154,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run PHYLIP on mutation matrix.")
     parser.add_argument("--command", type=str, required=True,
                         help="PHYLIP command to run: 'dnapars', 'dnapenny', or 'dnamlk'")
-    parser.add_argument("--input", type=str, default="../Output/test_run_mutiple_species/mutations.csv.gz",
+    parser.add_argument("--input", type=str, default="../Output/test_run_mutiple_species/matching_bases.csv.gz",
                         help="Path to input CSV mutation matrix")
     parser.add_argument("--tree-input", type=str, default=None,
                         help="Path to input newick tree file")
@@ -153,25 +167,15 @@ if __name__ == "__main__":
     parser.add_argument("--outgroup", type=str, default="Leptophobia_aripa",
                         help="Outgroup species name for tree annotation")
     args = parser.parse_args()
-
     _, mapping = annotate_tree_with_indices(args.tree_input, args.outgroup)
-
-    df = pd.read_csv(args.input, index_col=0).astype(str)
-    tree = Tree(args.tree_input, format=1) if args.tree_input else None
-
-    if tree is not None and mapping is not None:
-        for node in tree.iter_leaves():
-            if node.name in mapping:
-                node.name = f"taxa{mapping[node.name]}"
-            else:
-                raise ValueError(f"Species name '{node.name}' not found in mapping.")
 
     run_phylip(
         command=args.command,
-        df=df,
-        tree=tree,
+        df_path=args.input,
+        tree_path=args.tree_input,
         output_dir=args.output_dir,
         prefix=args.prefix,
         input_string=args.interactive,
         mapping=mapping
+        
     )

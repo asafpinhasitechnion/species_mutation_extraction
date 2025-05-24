@@ -13,3 +13,4 @@ dependencies:
   - pysam #?
   - matplotlib #?
   - pip
+  - ete3

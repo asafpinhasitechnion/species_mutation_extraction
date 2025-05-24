@@ -9,7 +9,7 @@ import csv
 import time
 from ete3 import Tree
 import pandas as pd
-from run_mutiple_species_pipeline import annotate_tree_with_indices
+from multiple_species_utils import annotate_tree_with_indices, save_annotated_tree
 from normalize_extracted_mutations import collapse_mutations
 from plot_spectra import plot_mutations
 
@@ -154,7 +154,7 @@ def extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cach
     csv_dir = os.path.join(output_dir, "CSVs")
     os.makedirs(csv_dir, exist_ok=True)
     
-    csv_output_path = os.path.join(output_dir, "mutations.csv.gz")
+    csv_output_path = os.path.join(output_dir, "matching_bases.csv.gz")
     data = []
     header = ["chromosome", "position", "left", "right"] + [f"taxa{i}" for i in range(n_species)]
     if os.path.exists(csv_output_path) and not no_cache:
@@ -217,7 +217,7 @@ def extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cach
 
 def memory_efficient_extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cache=False):
     os.makedirs(os.path.dirname(output_dir), exist_ok=True)
-    csv_output_path = os.path.join(output_dir, "mutations.csv.gz")
+    csv_output_path = os.path.join(output_dir, "matching_bases.csv.gz")
     header = ["chromosome", "position", "left", "right"] + [f"taxa{i}" for i in range(n_species)]
     if not os.path.exists(csv_output_path) or no_cache:
         with gzip.open(csv_output_path, 'wt', newline='') as outfile:
@@ -257,75 +257,6 @@ def memory_efficient_extract_mutations(pileup_file, output_dir, n_species, tree,
         df.to_csv(output_path, index=False, header=False, sep="\t", compression="gzip")
 
 
-import os
-import shutil
-
-
-def run_phylip_program(exe_path, df, tree, run_cmd, work_dir, output_prefix="phylip_run"):
-    """
-    Run a PHYLIP program in a dedicated folder to avoid file conflicts.
-
-    Args:
-        exe_path (str): Full path to PHYLIP binary (e.g., './phylip-3.697/exe/dnamlk')
-        df (pd.DataFrame): DataFrame with aligned nucleotides (columns: chromosome, position, left, right, taxa0, taxa1, ...)
-        tree (ete3.Tree): ETE tree object (not used in this function, but included for interface consistency)
-        run_cmd (callable): A subprocess wrapper (must accept cmd + input_text)
-        work_dir (str): Directory in which to run the PHYLIP program
-        output_prefix (str): Prefix for renamed output files (default 'phylip_run')
-
-    Returns:
-        dict: Paths to {'outfile': ..., 'outtree': ... (if created)}
-    """
-    os.makedirs(work_dir, exist_ok=True)
-
-    # Strip columns unrelated to taxa
-    taxa_cols = [col for col in df.columns if col.startswith("taxa")]
-    infile_path = os.path.join(work_dir, "infile")
-
-    # Write PHYLIP input file
-    with open(infile_path, 'w') as f:
-        f.write(f"{len(taxa_cols)} {len(df)}\n")
-        for col in taxa_cols:
-            sequence = ''.join(df[col].astype(str).values).replace(' ', '-').upper()
-            f.write(f"{col.ljust(10)}{sequence}\n")
-
-    # Change working directory temporarily
-    cwd_before = os.getcwd()
-    os.chdir(work_dir)
-
-    try:
-        run_cmd([exe_path], input_text="Y\n")  # Confirm PHYLIP settings
-    finally:
-        os.chdir(cwd_before)
-
-    # Collect and rename output files
-    output_files = {}
-    for name in ["outfile", "outtree"]:
-        path = os.path.join(work_dir, name)
-        if os.path.exists(path):
-            new_path = os.path.join(work_dir, f"{output_prefix}.{name}")
-            shutil.move(path, new_path)
-            output_files[name] = new_path
-
-    return output_files
-
-
-def save_annotated_tree(tree, path):
-    """
-    Save an ETE3 tree including internal node names (custom_name).
-    """
-    # Temporarily assign names for all nodes
-    original_names = {}
-    for node in tree.traverse():
-        original_names[node] = node.name
-        node.name = getattr(node, "custom_name", node.name)
-
-    tree.write(format=1, outfile=path)
-
-    # Restore original names
-    for node in tree.traverse():
-        node.name = original_names[node]
-
 # === Main Function ===
 def main():
     args = parse_args()
@@ -337,6 +268,8 @@ def main():
     no_cache = args.no_cache
     tree, mapping = annotate_tree_with_indices(newick_tree, outgroup)
     save_annotated_tree(tree, os.path.join(output_dir, "annotated_tree.nwk"))
+    with open(os.path.join(output_dir, "species_mapping.json"), 'w') as f:
+        json.dump(mapping, f, indent=2)
     extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cache=no_cache)
 
 

@@ -3,15 +3,16 @@
 set -euo pipefail
 
 # === Usage ===
-if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 <reference_name> <base_output_dir> <taxa1> [<taxa2> ...] [--no-cache]"
+if [ "$#" -lt 4 ]; then
+    echo "Usage: $0 <reference_name> <base_output_dir> <run_id> [<taxa2> ...] [--no-cache]"
     exit 1
 fi
 
 # === Required arguments ===
 REFERENCE=$1
 BASE_OUTPUT_DIR=$2
-shift 2
+RUN_ID=$3
+shift 3
 
 # === Handle taxa and optional args ===
 NO_CACHE=false
@@ -39,9 +40,7 @@ fi
 REF_FASTA="${BASE_OUTPUT_DIR}/${REFERENCE}/${REFERENCE}.fasta"
 BAM_FOLDER="${BASE_OUTPUT_DIR}/BAMs"
 
-joined=$(printf "__%s" "${TAXA[@]}")
-joined=${joined:2}  # Remove the leading __
-PILEUP_FILE="${BASE_OUTPUT_DIR}/${REFERENCE}__${joined}.pileup.gz"
+PILEUP_FILE="${BASE_OUTPUT_DIR}/${RUN_ID}.pileup.gz"
 
 # === Check input reference ===
 if [[ ! -f "$REF_FASTA" ]]; then
@@ -51,6 +50,7 @@ fi
 
 # === Build list of BAM files ===
 BAM_FILES=()
+echo "🔍 Checking BAM files for taxa: ${TAXA[*]}"
 for TAXON in "${TAXA[@]}"; do
     BAM="${BAM_FOLDER}/${TAXON}_to_${REFERENCE}.bam"
     if [[ ! -f "$BAM" ]]; then
