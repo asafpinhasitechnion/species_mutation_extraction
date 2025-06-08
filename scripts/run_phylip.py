@@ -7,12 +7,14 @@ from multiple_species_utils import annotate_tree_with_indices
 
 
 def write_phylip_infile(df, outfile):
-    taxa_cols = df.columns[df.columns.str.startswith('taxa')]
+    irrelevant_cols = ['chromosome','position','left','right']
+    taxa_cols = df.columns[~df.columns.isin(irrelevant_cols)]
     with open(outfile, 'w') as f:
         f.write(f"{len(taxa_cols)} {len(df)}\n")
         for col in taxa_cols:
             sequence = ''.join(df[col].astype(str).values).replace(' ', '-').upper()
-            f.write(f"{col.ljust(10)}{sequence}\n")
+            # f.write(f"{col.ljust(30)}{sequence}\n")
+            f.write(f"{col}     {sequence}\n")
 
 
 def write_intree(tree, outfile):
@@ -55,7 +57,7 @@ def run_phylip_command(df, output_dir, exe_path, tree=None, prefix="run1", phyli
             os.remove(fname)
 
     write_phylip_infile(df, "infile")
-    print(f"📄 PHYLIP input written to {os.path.abspath('infile')}")
+    print(f"PHYLIP input written to {os.path.abspath('infile')}")
 
     if tree:
         write_intree(tree, "intree")
@@ -108,7 +110,7 @@ def run_phylip(command, df_path, tree_path, output_dir, prefix, input_string, ma
     no_tree_dir = os.path.join(output_dir, f"{prefix}_no_tree")
     tree_dir = os.path.join(output_dir, f"{prefix}_with_tree")
 
-    print(f"🚀 Running PHYLIP {command} without a starting tree...")
+    print(f"Running PHYLIP {command} without a starting tree...")
     default_output = run_phylip_command(
         df,
         output_dir=no_tree_dir,
@@ -117,9 +119,9 @@ def run_phylip(command, df_path, tree_path, output_dir, prefix, input_string, ma
         prefix=prefix,
         phylip_input_args=input_string
     )
-    print("📂 PHYLIP outputs (no tree):", default_output)
+    print("PHYLIP outputs (no tree):", default_output)
 
-    print(f"🚀 Running PHYLIP {command} with a starting tree...")
+    print(f"Running PHYLIP {command} with a starting tree...")
     tree_output = run_phylip_command(
         df,
         output_dir=tree_dir,
@@ -128,24 +130,24 @@ def run_phylip(command, df_path, tree_path, output_dir, prefix, input_string, ma
         prefix="given_tree_run",
         phylip_input_args='U\n' + input_string
     )
-    print("📂 PHYLIP outputs (with tree):", tree_output)
+    print("PHYLIP outputs (with tree):", tree_output)
 
     
     # === Compare scores ===
     default_score = extract_parsimony_score(default_output["outfile"])
     given_score = extract_parsimony_score(tree_output["outfile"])
 
-    print("\n🔍 Parsimony Score Comparison:")
+    print("\nParsimony Score Comparison:")
     print(f" - Most Parsimonious Tree Score: {default_score}")
     print(f" - Given Tree Score: {given_score}")
 
     if given_score == default_score:
-        print("✅ The input tree is the most parsimonious.")
+        print("The input tree is the most parsimonious.")
     elif given_score > default_score:
         ratio = given_score/default_score
-        print(f"⚠️  The input tree requires {ratio:.2f} times more changes than the most parsimonious tree.")
+        print(f"The input tree requires {ratio:.2f} times more changes than the most parsimonious tree.")
     else:
-        print(f"🤯 Unexpected: input tree is more parsimonious than the optimal tree (check logic).")
+        print(f"Unexpected: input tree is more parsimonious than the optimal tree (check logic).")
 
 
 if __name__ == "__main__":
@@ -164,7 +166,7 @@ if __name__ == "__main__":
                         help="Prefix for output files")
     parser.add_argument("--interactive", type=str, default="Y\n",
                         help="Interactive input for PHYLIP (default: just accept settings)")
-    parser.add_argument("--outgroup", type=str, default="Leptophobia_aripa",
+    parser.add_argument("--outgroup", type=str, default=None,
                         help="Outgroup species name for tree annotation")
     args = parser.parse_args()
     _, mapping = annotate_tree_with_indices(args.tree_input, args.outgroup)

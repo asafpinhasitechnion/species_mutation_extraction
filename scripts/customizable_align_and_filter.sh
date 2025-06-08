@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         *)
-            echo "❌ Unknown argument: $1"
+            echo "Unknown argument: $1"
             exit 1
             ;;
     esac
@@ -52,7 +52,7 @@ done
 
 # === Set default to bwa if neither provided ===
 if [[ -z "$ALIGNER_CMD" && -z "$ALIGNER" ]]; then
-    echo "ℹ️ No aligner specified. Defaulting to 'bwa'"
+    echo "No aligner specified. Defaulting to 'bwa'"
     ALIGNER="bwa"
 fi
 
@@ -69,7 +69,7 @@ if [[ -z "$ALIGNER_CMD" && -n "$ALIGNER" ]]; then
             ALIGNER_CMD="bbmap.sh ref={ref} threads={cores} in={fq} out=stdout.sam"
             ;;
         *)
-            echo "❌ Unsupported aligner: $ALIGNER"
+            echo "Unsupported aligner: $ALIGNER"
             exit 1
             ;;
     esac
@@ -78,7 +78,7 @@ fi
 # === Final validation for placeholders ===
 if [[ "$ALIGNER_CMD" != *"{ref}"* || "$ALIGNER_CMD" != *"{fq}"* || "$ALIGNER_CMD" != *"{cores}"* ]]; then
     echo "$ALIGNER_CMD"
-    echo "❌ --aligner-cmd must include placeholders: {ref}, {fq}, and {cores}"
+    echo "--aligner-cmd must include placeholders: {ref}, {fq}, and {cores}"
     exit 1
 fi
 
@@ -94,18 +94,18 @@ LOG="${BAM%.bam}.log"
 
 # === Input checks ===
 if [[ ! -f "$SPECIES_FASTA" ]]; then
-    echo "❌ Species FASTA not found: $SPECIES_FASTA"
+    echo "Species FASTA not found: $SPECIES_FASTA"
     exit 1
 fi
 
 if [[ ! -f "$REFERENCE_FASTA" ]]; then
-    echo "❌ Reference FASTA not found: $REFERENCE_FASTA"
+    echo "Reference FASTA not found: $REFERENCE_FASTA"
     exit 1
 fi
 
 # === Final BAM caching ===
 if [[ -f "$BAM" && "$NO_CACHE" == false ]]; then
-    echo "✅ Final BAM already exists: $BAM"
+    echo "Final BAM already exists: $BAM"
     exit 0
 fi
 
@@ -113,9 +113,9 @@ mkdir -p "$BAM_DIR"
 
 # === FASTQ generation ===
 if [[ -f "$FASTQ" && "$NO_CACHE" == false ]]; then
-    echo "📂 Reusing existing FASTQ file: $FASTQ"
+    echo "Reusing existing FASTQ file: $FASTQ"
 else
-    echo "🔧 Generating FASTQ from $SPECIES_FASTA → $FASTQ"
+    echo "Generating FASTQ from $SPECIES_FASTA to $FASTQ"
     python create_fastq_fragments.py "$SPECIES_FASTA" --output "$FASTQ" --force
 fi
 
@@ -136,20 +136,20 @@ ALIGN_CMD=${ALIGN_CMD//\{cores\}/$CORES}
 # === Alignment and filtering logic ===
 if [[ "$REMOVE_TEMP" == false ]]; then
     if [[ -f "$RAW_BAM" && "$NO_CACHE" == false ]]; then
-        echo "📡 Using cached raw BAM: $RAW_BAM"
+        echo "Using cached raw BAM: $RAW_BAM"
     else
-        echo "📡 Aligning and saving raw BAM..."
+        echo "Aligning and saving raw BAM..."
         eval "$ALIGN_CMD" | samtools sort -@ "$CORES" -o "$RAW_BAM"
         samtools index "$RAW_BAM"
-        echo "✅ Raw BAM saved: $RAW_BAM"
+        echo "Raw BAM saved: $RAW_BAM"
     fi
 
-    echo "🔬 Filtering $RAW_BAM to produce final BAM..."
+    echo "Filtering $RAW_BAM to produce final BAM..."
     samtools view -h "$RAW_BAM" \
         | eval "$FILTER_CMD" 2> "$LOG" \
         | samtools sort -@ "$CORES" -o "$BAM"
 else
-    echo "🔄 Aligning, filtering, and sorting in stream..."
+    echo "Aligning, filtering, and sorting in stream..."
     eval "$ALIGN_CMD" \
         | eval "$FILTER_CMD" 2> "$LOG" \
         | samtools sort -@ "$CORES" -o "$BAM"
@@ -158,10 +158,10 @@ else
 fi
 
 # === Index final BAM ===
-echo "📌 Indexing final BAM..."
+echo "Indexing final BAM..."
 samtools index "$BAM"
 
 # === Done ===
-echo "✅ Finished: $BAM"
-echo "📄 Filter stats written to: $LOG"
-[[ "$REMOVE_TEMP" == false ]] && echo "📁 Unfiltered alignment saved: $RAW_BAM"
+echo "Finished: $BAM"
+echo "Filter stats written to: $LOG"
+[[ "$REMOVE_TEMP" == false ]] && echo "Unfiltered alignment saved: $RAW_BAM"

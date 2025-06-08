@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
                 MAPQ="$2"
                 shift 2
             else
-                echo "❌ --mapq requires a value"
+                echo "--mapq requires a value"
                 exit 1
             fi
             ;;
@@ -44,12 +44,12 @@ while [[ $# -gt 0 ]]; do
                 ALIGNER="$2"
                 shift 2
             else
-                echo "❌ --aligner must be 'bwa', 'minimap2', or 'bbmap'"
+                echo "--aligner must be 'bwa', 'minimap2', or 'bbmap'"
                 exit 1
             fi
             ;;
         *)
-            echo "❌ Unknown argument: $1"
+            echo "Unknown argument: $1"
             exit 1
             ;;
     esac
@@ -66,12 +66,12 @@ LOG="${BAM%.bam}.log"
 
 # === Input checks ===
 if [[ ! -f "$SPECIES_FASTA" ]]; then
-    echo "❌ Species FASTA not found: $SPECIES_FASTA"
+    echo "Species FASTA not found: $SPECIES_FASTA"
     exit 1
 fi
 
 if [[ ! -f "$REFERENCE_FASTA" ]]; then
-    echo "❌ Reference FASTA not found: $REFERENCE_FASTA"
+    echo "Reference FASTA not found: $REFERENCE_FASTA"
     exit 1
 fi
 
@@ -82,7 +82,7 @@ fi
 
 # === Final BAM caching ===
 if [[ -f "$BAM" && "$NO_CACHE" == false ]]; then
-    echo "✅ Final BAM already exists: $BAM"
+    echo "Final BAM already exists: $BAM"
     exit 0
 fi
 
@@ -90,9 +90,9 @@ mkdir -p "$BAM_DIR"
 
 # === FASTQ caching ===
 if [[ -f "$FASTQ" && "$NO_CACHE" == false ]]; then
-    echo "📂 Reusing existing FASTQ file: $FASTQ"
+    echo "Reusing existing FASTQ file: $FASTQ"
 else
-    echo "🔧 Generating FASTQ from $SPECIES_FASTA → $FASTQ"
+    echo "Generating FASTQ from $SPECIES_FASTA → $FASTQ"
     python create_fastq_fragments.py "$SPECIES_FASTA" --output "$FASTQ" --force
 fi
 
@@ -108,9 +108,9 @@ CORES=$(nproc)
 # === Alignment and filtering logic ===
 if [[ "$REMOVE_TEMP" == false ]]; then
     if [[ -f "$RAW_BAM" && "$NO_CACHE" == false ]]; then
-        echo "📡 Using cached raw BAM: $RAW_BAM"
+        echo "Using cached raw BAM: $RAW_BAM"
     else
-        echo "📡 Aligning and saving raw BAM..."
+        echo "Aligning and saving raw BAM..."
 
         if [[ "$ALIGNER" == "minimap2" ]]; then
             minimap2 -t "$CORES" -ax sr "$REFERENCE_FASTA" "$FASTQ" \
@@ -127,16 +127,16 @@ if [[ "$REMOVE_TEMP" == false ]]; then
         fi
 
         samtools index "$RAW_BAM"
-        echo "✅ Raw BAM saved: $RAW_BAM"
+        echo "Raw BAM saved: $RAW_BAM"
     fi
 
-    echo "🔬 Filtering $RAW_BAM to produce final BAM..."
+    echo "Filtering $RAW_BAM to produce final BAM..."
     samtools view -h "$RAW_BAM" \
         | eval "$FILTER_CMD" 2> "$LOG" \
         | samtools sort -@ "$CORES" -o "$BAM"
 
 else
-    echo "🔄 Aligning, filtering, and sorting in stream..."
+    echo "Aligning, filtering, and sorting in stream..."
 
     if [[ "$ALIGNER" == "minimap2" ]]; then
         minimap2 -t "$CORES" -ax sr "$REFERENCE_FASTA" "$FASTQ" \
@@ -159,10 +159,10 @@ else
 fi
 
 # === Index final BAM ===
-echo "📌 Indexing final BAM..."
+echo "Indexing final BAM..."
 samtools index "$BAM"
 
 # === Done ===
-echo "✅ Finished: $BAM"
-echo "📄 Filter stats written to: $LOG"
-[[ "$REMOVE_TEMP" == false ]] && echo "📁 Unfiltered alignment saved: $RAW_BAM"
+echo "Finished: $BAM"
+echo "Filter stats written to: $LOG"
+[[ "$REMOVE_TEMP" == false ]] && echo "Unfiltered alignment saved: $RAW_BAM"

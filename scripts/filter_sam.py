@@ -74,7 +74,7 @@ def main():
             mapq_values.append(mapq)
 
         except ValueError:
-            print(f"⚠️ Invalid line {i+1}: POS={fields[3]} MAPQ={fields[4]}", file=sys.stderr)
+            print(f"Invalid line {i+1}: POS={fields[3]} MAPQ={fields[4]}", file=sys.stderr)
             continue
 
         if next_read == read_name:
@@ -100,7 +100,7 @@ def main():
         infile.close()
 
     # Summary report
-    print(f"🧾 Filter Summary:", file=sys.stderr)
+    print(f"Filter Summary:", file=sys.stderr)
     print(f"  Total reads processed:   {total_reads}", file=sys.stderr)
     print(f"  Reads kept:              {kept_reads}", file=sys.stderr)
     print(f"  Filtered (low MAPQ):     {filtered_mapq}", file=sys.stderr)
@@ -119,7 +119,7 @@ def main():
         os.makedirs(args.mapq_hist_folder, exist_ok=True)
         out_path = os.path.join(args.mapq_hist_folder, 'mapq_histogram.png')
         plt.savefig(out_path)
-        print(f"📊 MAPQ histogram saved to {out_path}", file=sys.stderr)
+        print(f"MAPQ histogram saved to {out_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

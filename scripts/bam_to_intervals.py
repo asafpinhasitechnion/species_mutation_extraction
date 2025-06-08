@@ -73,7 +73,7 @@ def main():
 
     # Caching logic
     if os.path.exists(output_file) and not args.no_cache:
-        print(f"✅ Intervals already exist: {output_file}")
+        print(f"Intervals already exist: {output_file}")
         return
 
     bamfile = pysam.AlignmentFile(args.input_bam, "rb")
@@ -86,7 +86,7 @@ def main():
             intervals = merge_intervals(intervals)
 
     write_intervals(intervals, output_file)
-    print(f"✅ Intervals written to: {output_file}")
+    print(f"Intervals written to: {output_file}")
 
 
 if __name__ == "__main__":

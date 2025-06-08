@@ -13,10 +13,10 @@ from run_phylip import run_phylip
 
 
 def run_cmd(cmd, shell=False):
-    print(f"➡️ Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+    print(f"Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
     result = subprocess.run(cmd, shell=shell)
     if result.returncode != 0:
-        print(f"❌ Command failed: {cmd}")
+        print(f"Command failed: {cmd}")
         sys.exit(result.returncode)
 
 
@@ -30,7 +30,7 @@ def write_metadata(args_dict, output_dir):
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"📝 Metadata written to {metadata_path}")
+    print(f"Metadata written to {metadata_path}")
 
 
 def parse_args():
@@ -42,9 +42,12 @@ def parse_args():
     # optional_args = sys.argv[3:]
 
 
-    newick_tree = "(Leptophobia_aripa|GCA_951799465.1, (Pieris_brassicae|GCF_905147105.1, (Pieris_napi|GCF_905475465.1, (Pieris_rapae|GCF_905147795.1, Pieris_mannii|GCA_028984075.1))));"
-    run_id = 'test_run_mutiple_species'
-    optional_args = ['--mapq', '1', '--no-cache']
+    # newick_tree = "(Leptophobia_aripa|GCA_951799465.1, (Pieris_brassicae|GCF_905147105.1, (Pieris_napi|GCF_905475465.1, (Pieris_rapae|GCF_905147795.1, Pieris_mannii|GCA_028984075.1))));"
+    # newick_tree = "(((Drosophila_miranda|GCF_003369915.1,Drosophila_pseudoobscura|GCF_009870125.1),Drosophila_helvetica|GCA_963969585.1),Drosophila_athabasca|GCA_008121215.1);"
+    newick_tree = "(((Drosophila_sechellia|GCF_004382195.2,Drosophila_melanogaster|GCF_000001215.4),Drosophila_mauritiana|GCF_004382145.1),Drosophila_santomea|GCF_016746245.2);"
+
+    run_id = 'drosophila2_run_mutiple_species'
+    optional_args = ['--mapq', '1']
 
     # === Argument groups ===
     download_args, index_args = [], []
@@ -89,7 +92,7 @@ def parse_args():
             GENOMIC_PLOTS = True
             i += 1
         else:
-            print(f"❗ Unknown argument: {arg}")
+            print(f"Unknown argument: {arg}")
             sys.exit(1)
 
     return {
@@ -127,26 +130,26 @@ def main():
     if args['outgroup']:
         outgroup = args['outgroup']
 
-    print(f"📁 Run ID: {run_id}")
-    print(f"📂 Base output directory: {base_output_dir}")
+    print(f"Run ID: {run_id}")
+    print(f"Base output directory: {base_output_dir}")
     write_metadata(args, base_output_dir)
 
     # === GENOME DOWNLOADS ===
-    print("⬇️ Downloading genomes...")
+    print("Downloading genomes...")
     for species, accession in species_accession_dict.items():
         run_cmd(["bash", "download_genome.sh", species, accession, str(base_output_dir)] + args["download_args"])
 
     # REFERENCE INDEXING
-    print(f"🧬 Indexing outgroup genome: {outgroup}")
+    print(f"Indexing outgroup genome: {outgroup}")
     run_cmd(["bash", "index_reference_genome.sh", outgroup, str(base_output_dir)] + args["index_args"])
 
     # ALIGNMENTS
     for species, accession in species_accession_dict.items():
         if species != outgroup:
-            print(f"🔗 Aligning {species} to {outgroup}")
+            print(f"Aligning {species} to {outgroup}")
             run_cmd(["bash", "customizable_align_and_filter.sh", species, outgroup, str(base_output_dir)] + args["align_filter_args"])
 
-    print(f"✅ Alignment and filtering complete for {run_id}")
+    print(f"Alignment and filtering complete for {run_id}")
 
     tree, terminal_mapping = annotate_tree_with_indices(newick_tree, outgroup)
     # Extract terminal indices in order, skipping outgroup index 0
@@ -161,15 +164,18 @@ def main():
         json.dump(terminal_mapping, f, indent=2)
 
     # PILEUP
-    print("📊 Creating pileup...")
+    print("Creating pileup...")
     run_cmd(["bash", "create_multiple_species_pileup.sh", outgroup, str(base_output_dir), run_id] + ordered_taxa + args["pileup_args"])
 
     # # MUTATIONS
-    print("🧪 Extracting mutations...")
+    print("Extracting mutations...")
     no_cache = "--no-cache" in args["mutation_args"]
     n_species = len(tree)
-    pileup_file = f"{run_id}_pileup.txt"
-    # extract_mutations(pileup_file, base_output_dir, n_species, tree, terminal_mapping, no_cache)
+    pileup_file = os.path.join(base_output_dir, f"{run_id}.pileup.gz")
+    extract_mutations(pileup_file, base_output_dir, n_species, tree, terminal_mapping, no_cache)
+    # run_cmd(["python3", "extract_multiple_species_mutations.py", args["out_name"], args["t1_name"], args["t2_name"],
+    #          "--pileup-dir", str(base_output_dir),
+    #          "--output-dir", str(base_output_dir / "Mutations")] + args["mutation_args"])
 
     run_phylip(command='dnapars',
         df_path=  os.path.join(base_output_dir, "matching_bases.csv.gz"),
@@ -179,9 +185,7 @@ def main():
         input_string='5\nY\n',
         mapping=terminal_mapping
     )
-    # run_cmd(["python3", "extract_multiple_species_mutations.py", args["out_name"], args["t1_name"], args["t2_name"],
-    #          "--pileup-dir", str(base_output_dir),
-    #          "--output-dir", str(base_output_dir / "Mutations")] + args["mutation_args"])
+    
     
 
 if __name__ == "__main__":

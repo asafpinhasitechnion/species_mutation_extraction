@@ -6,10 +6,10 @@ import json
 from datetime import datetime
 
 def run_cmd(cmd, shell=False):
-    print(f"➡️ Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+    print(f"Running: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
     result = subprocess.run(cmd, shell=shell)
     if result.returncode != 0:
-        print(f"❌ Command failed: {cmd}")
+        print(f"Command failed: {cmd}")
         sys.exit(result.returncode)
 
 
@@ -23,7 +23,7 @@ def write_metadata(args_dict, output_dir):
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"📝 Metadata written to {metadata_path}")
+    print(f"Metadata written to {metadata_path}")
 
 
 def parse_args():
@@ -36,9 +36,10 @@ def parse_args():
 
     # === Argument groups ===
     download_args, index_args = [], []
-    align_filter_args, pileup_args, mutation_args, triplet_args, interval_args = [], [], [], [], []
+    align_filter_args, pileup_args, mutation_args, triplet_args, interval_args, normalize_mutations_args = [], [], [], [], [], []
     global GENOMIC_PLOTS
     GENOMIC_PLOTS = False
+    suffix = ""
 
     i = 0
     while i < len(optional_args):
@@ -72,8 +73,14 @@ def parse_args():
         elif arg == '--genomic-position-plots':
             GENOMIC_PLOTS = True
             i += 1
+        elif arg == '--suffix':
+            suffix = optional_args[i + 1]
+            i += 2
+        elif arg == '--divergence-time':
+            normalize_mutations_args.extend([arg, optional_args[i + 1]])
+            i += 2
         else:
-            print(f"❗ Unknown argument: {arg}")
+            print(f"Unknown argument: {arg}")
             sys.exit(1)
 
     return {
@@ -90,6 +97,8 @@ def parse_args():
         "mutation_args": mutation_args,
         "triplet_args": triplet_args,
         "interval_args": interval_args,
+        "suffix": suffix,
+        "normalize_mutations_args": normalize_mutations_args
     }
 
 def get_top_n_chromosomes(fai_path, n=2):
@@ -106,58 +115,61 @@ def main():
     args = parse_args()
 
     run_id = f"{args['t1_name']}__{args['t2_name']}__{args['out_name']}"
+    if "suffix" in args:
+        run_id += '_' + args["suffix"]
+
     base_output_dir = Path("../Output") / run_id
     base_output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"📁 Run ID: {run_id}")
-    print(f"📂 Base output directory: {base_output_dir}")
+    print(f"Run ID: {run_id}")
+    print(f"Base output directory: {base_output_dir}")
     write_metadata(args, base_output_dir)
 
     # === GENOME DOWNLOADS ===
-    print("⬇️ Downloading genomes...")
+    print("Downloading genomes...")
     run_cmd(["bash", "download_genome.sh", args["t1_name"], args["t1_acc"], str(base_output_dir)] + args["download_args"])
     run_cmd(["bash", "download_genome.sh", args["t2_name"], args["t2_acc"], str(base_output_dir)] + args["download_args"])
     run_cmd(["bash", "download_genome.sh", args["out_name"], args["out_acc"], str(base_output_dir)] + args["download_args"])
 
     # REFERENCE INDEXING
-    print(f"🧬 Indexing outgroup genome: {args['out_name']}")
+    print(f"Indexing outgroup genome: {args['out_name']}")
     run_cmd(["bash", "index_reference_genome.sh", args["out_name"], str(base_output_dir)] + args["index_args"])
 
     # ALIGNMENTS
-    print(f"🔗 Aligning {args['t1_name']} to {args['out_name']}")
+    print(f"Aligning {args['t1_name']} to {args['out_name']}")
     run_cmd(["bash", "customizable_align_and_filter.sh", args["t1_name"], args["out_name"], str(base_output_dir)] + args["align_filter_args"])
 
-    print(f"🔗 Aligning {args['t2_name']} to {args['out_name']}")
+    print(f"Aligning {args['t2_name']} to {args['out_name']}")
     run_cmd(["bash", "customizable_align_and_filter.sh", args["t2_name"], args["out_name"], str(base_output_dir)] + args["align_filter_args"])
 
-    print(f"✅ Alignment and filtering complete for {run_id}")
+    print(f"Alignment and filtering complete for {run_id}")
 
     # PILEUP
-    print("📊 Creating pileup...")
+    print("Creating pileup...")
     run_cmd(["bash", "create_pileup.sh", args["out_name"], args["t1_name"], args["t2_name"], str(base_output_dir)] + args["pileup_args"])
 
     # MUTATIONS
-    print("🧪 Extracting mutations...")
+    print("Extracting mutations...")
     run_cmd(["python3", "extract_mutations.py", args["out_name"], args["t1_name"], args["t2_name"],
              "--pileup-dir", str(base_output_dir),
              "--output-dir", str(base_output_dir / "Mutations")] + args["mutation_args"])
 
     # TRIPLETS
-    print("🧬 Extracting triplet contexts...")
+    print("Extracting triplet contexts...")
     run_cmd(["python3", "extract_triplets.py", args["out_name"], args["t1_name"], args["t2_name"],
              "--pileup-dir", str(base_output_dir),
              "--output-dir", str(base_output_dir / "Triplets")] + args["triplet_args"])
 
     # NORMALIZATION
-    print("📐 Normalizing mutation spectra...")
-    run_cmd(["python3", "normalize_extracted_mutations.py", "--input-dir", str(base_output_dir)])
+    print("Normalizing mutation spectra...")
+    run_cmd(["python3", "normalize_extracted_mutations.py", "--input-dir", str(base_output_dir)] + args["normalize_mutations_args"])
 
     # PLOTTING
-    print("🖼️ Plotting mutation and triplet spectra...")
+    print("Plotting mutation and triplet spectra...")
     run_cmd(["python3", "plot_spectra.py", "--input-dir", str(base_output_dir / "Tables")])
 
     # INTERVAL EXTRACTION
-    print("📏 Extracting genomic intervals...")
+    print("Extracting genomic intervals...")
     interval_dir = base_output_dir / "Intervals"
     interval_dir.mkdir(exist_ok=True)
     if GENOMIC_PLOTS:
@@ -177,13 +189,13 @@ def main():
         # === FAI FILE LOCATION ===
         fai_file = base_output_dir / args["out_name"] / f"{args['out_name']}.fasta.fai"
         if not fai_file.exists():
-            print(f"❌ FAI file not found: {fai_file}")
+            print(f"FAI file not found: {fai_file}")
             sys.exit(1)
 
         top_chroms = get_top_n_chromosomes(fai_file, n=5)
-        print("📊 Plotting coverage and mutation density for top chromosomes...")
+        print("Plotting coverage and mutation density for top chromosomes...")
         for chrom in top_chroms:
-            print(f"📈 Plotting for {chrom}...")
+            print(f"Plotting for {chrom}...")
 
             # Coverage plot
             run_cmd([
@@ -217,7 +229,7 @@ def main():
 
                     # === CLEANUP ===
         if "--remove-temp" in sys.argv:
-            print("🧹 Cleaning up intermediate files...")
+            print("Cleaning up intermediate files...")
             run_cmd([
                 "bash", "cleanup_output.sh", str(base_output_dir),
                 "--pileup", "--genomes",

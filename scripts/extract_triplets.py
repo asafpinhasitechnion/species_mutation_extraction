@@ -52,6 +52,14 @@ def extract_triplets(line_fields):
         sequences[TAXA2_IDX].append(nuc2)
     return sequences
 
+def relevant_triplet(triplets):
+    if triplets[REF_IDX][PREV_IDX] == triplets[TAXA1_IDX][PREV_IDX] == triplets[TAXA2_IDX][PREV_IDX] and \
+       triplets[REF_IDX][NEXT_IDX] == triplets[TAXA1_IDX][NEXT_IDX] == triplets[TAXA2_IDX][NEXT_IDX]:
+        if triplets[REF_IDX][CUR_IDX] == triplets[TAXA1_IDX][CUR_IDX] or \
+            triplets[REF_IDX][CUR_IDX] == triplets[TAXA2_IDX][CUR_IDX]:
+            return True
+    return False
+
 def main():
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
@@ -61,7 +69,7 @@ def main():
     out_json2 = os.path.join(args.output_dir, f"{args.taxa2}__{args.taxa1}__{args.reference}__triplets.json")
 
     if all(os.path.exists(p) for p in [out_json1, out_json2]) and not args.no_cache:
-        print("✅ Triplet counts already exist. Skipping.")
+        print("Triplet counts already exist. Skipping.")
         return
 
     triplet_dict1 = defaultdict(int)
@@ -77,14 +85,19 @@ def main():
             if all(qc_flags):
                 triplets = extract_triplets(line_fields)
                 triplet_dict1[''.join(triplets[TAXA1_IDX])] += 1
-                triplet_dict2[''.join(triplets[TAXA2_IDX])] += 1
+                triplet_dict2[''.join(triplets[TAXA2_IDX])] += 1 
+                # if relevant_triplet(triplets):
+                #     triplet = ''.join(triplets[REF_IDX])
+                #     triplet_dict1[triplet] += 1
+                #     triplet_dict2[triplet] += 1
+
 
     with open(out_json1, 'w') as f:
         json.dump(triplet_dict1, f, indent=2)
     with open(out_json2, 'w') as f:
         json.dump(triplet_dict2, f, indent=2)
 
-    print(f"✅ Triplet dictionaries written to {out_json1} and {out_json2}")
+    print(f"Triplet dictionaries written to {out_json1} and {out_json2}")
 
 if __name__ == "__main__":
     main()

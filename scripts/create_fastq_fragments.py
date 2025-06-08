@@ -31,7 +31,7 @@ def fastq_fragments(input_fasta, output_fastq, length=150, offset=75, force=Fals
                 out.write(f"{frag}\n+\n")
                 out.write(f"{'I' * len(frag)}\n")
 
-    print(f"✅ Wrote {output_fastq}")
+    print(f"Wrote {output_fastq}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create synthetic FASTQ reads from a genome FASTA.")

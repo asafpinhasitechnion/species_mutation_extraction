@@ -85,7 +85,7 @@ def plot_mutation_density(midpoints_list, mutation_list, labels, chrom, output_p
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
     plt.close()
-    print(f"✅ Saved: {output_path}")
+    print(f"Saved: {output_path}")
 
 
 def main():

@@ -14,7 +14,7 @@ def parse_species_accession_from_newick(newick_str):
             species, accession = leaf.name.split("|", 1)
             species_accession_dict[species] = accession
         else:
-            print(f"❗ Leaf name '{leaf.name}' does not contain a '|' separator.")
+            print(f"Leaf name '{leaf.name}' does not contain a '|' separator.")
             sys.exit(1)
 
     # Extract outgroup from the tree, or raise an error if no single outgroup exists
@@ -27,7 +27,7 @@ def parse_species_accession_from_newick(newick_str):
             break
 
     if outgroup is None:
-        print("❗ Could not determine a single outgroup from the Newick tree. Please ensure the tree is rooted and has a single outgroup.")
+        print("Could not determine a single outgroup from the Newick tree. Please ensure the tree is rooted and has a single outgroup.")
         sys.exit(1)
 
     return species_accession_dict, outgroup
@@ -96,8 +96,8 @@ def annotate_tree_with_indices(newick_str, outgroup_name, file_path=None):
         with open(mapping_path, "w") as f:
             json.dump(terminal_mapping, f, indent=2)
 
-        print(f"📝 Annotated tree saved to {annotated_tree_path}")
-        print(f"📝 Terminal mapping saved to {mapping_path}")
+        print(f"Annotated tree saved to {annotated_tree_path}")
+        print(f"Terminal mapping saved to {mapping_path}")
 
     return tree, terminal_mapping
 

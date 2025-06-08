@@ -79,7 +79,7 @@ def main():
     csvs_exist = not args.no_full_mutations and all(os.path.exists(p) for p in [csv_path1, csv_path2])
 
     if not args.no_cache and jsons_exist and (args.no_full_mutations or csvs_exist):
-        print("✅ Mutation counts already exist. Skipping.")
+        print("Mutation counts already exist. Skipping.")
         return
 
     species_mut1 = defaultdict(int)
@@ -122,16 +122,16 @@ def main():
 
     if writer1:
         writer1.close()
-        print(f"📄 Full mutation CSV written to: {csv_path1}")
+        print(f"Full mutation CSV written to: {csv_path1}")
     if writer2:
         writer2.close()
-        print(f"📄 Full mutation CSV written to: {csv_path2}")
+        print(f"Full mutation CSV written to: {csv_path2}")
 
     with open(out_json1, 'w') as f:
         json.dump(species_mut1, f, indent=2)
     with open(out_json2, 'w') as f:
         json.dump(species_mut2, f, indent=2)
-    print(f"✅ Saved mutation counts to {out_json1} and {out_json2}")
+    print(f"Saved mutation counts to {out_json1} and {out_json2}")
 
 if __name__ == "__main__":
     main()

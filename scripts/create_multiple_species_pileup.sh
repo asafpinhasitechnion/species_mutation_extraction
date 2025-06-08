@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "${#TAXA[@]}" -lt 3 ]; then
-    echo "❌ At least three taxa must be provided."
+    echo "At least three taxa must be provided."
     exit 1
 fi
 
@@ -44,17 +44,17 @@ PILEUP_FILE="${BASE_OUTPUT_DIR}/${RUN_ID}.pileup.gz"
 
 # === Check input reference ===
 if [[ ! -f "$REF_FASTA" ]]; then
-    echo "❌ Reference FASTA not found: $REF_FASTA"
+    echo "Reference FASTA not found: $REF_FASTA"
     exit 1
 fi
 
 # === Build list of BAM files ===
 BAM_FILES=()
-echo "🔍 Checking BAM files for taxa: ${TAXA[*]}"
+echo "Checking BAM files for taxa: ${TAXA[*]}"
 for TAXON in "${TAXA[@]}"; do
     BAM="${BAM_FOLDER}/${TAXON}_to_${REFERENCE}.bam"
     if [[ ! -f "$BAM" ]]; then
-        echo "❌ Required BAM not found: $BAM"
+        echo "Required BAM not found: $BAM"
         exit 1
     fi
     BAM_FILES+=("$BAM")
@@ -62,16 +62,16 @@ done
 
 # === Skip if exists and caching is allowed ===
 if [[ -f "$PILEUP_FILE" && "$NO_CACHE" == false ]]; then
-    echo "✅ Pileup already exists: $PILEUP_FILE"
+    echo "Pileup already exists: $PILEUP_FILE"
     exit 0
 fi
 
 # === Run mpileup ===
-echo "🔬 Generating pileup:"
+echo "Generating pileup:"
 echo "    Reference: $REFERENCE"
 echo "    Taxa: ${TAXA[*]}"
 echo "    Output: $PILEUP_FILE"
 
 samtools mpileup -f "$REF_FASTA" -B -d 100 "${BAM_FILES[@]}" | gzip > "$PILEUP_FILE"
 
-echo "✅ Pileup written to: $PILEUP_FILE"
+echo "Pileup written to: $PILEUP_FILE"

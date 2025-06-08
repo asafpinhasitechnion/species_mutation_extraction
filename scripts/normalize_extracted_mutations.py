@@ -67,6 +67,8 @@ def main():
     parser = argparse.ArgumentParser(description="Normalize mutation spectra using triplet contexts.")
     parser.add_argument("--input-dir", required=True, help="Path to the run output directory (containing Mutations/ and Triplets/)")
     parser.add_argument("--output-dir", help="Optional output dir (default: input-dir/Normalized)")
+    parser.add_argument("--divergence-time", type=float, help="The divergence time of taxa1 and taxa2 (in million years ago, MYA)")
+
     args = parser.parse_args()
 
     mutation_dir = os.path.join(args.input_dir, "Mutations")
@@ -109,11 +111,26 @@ def main():
         all_norm_mut[file.split('.')[0]] = scaled_norm_mut
         all_scaled_mut[file.split('.')[0]] = scaled_mut
 
-    # Output combined TSVs
-    pd.DataFrame(all_collapsed_mut).to_csv(os.path.join(output_dir, "collapsed_mutations.tsv"), sep='\t')
+    # Output combined 
+    collapsed_mutations_df = pd.DataFrame(all_collapsed_mut)
+    collapsed_mutations_df.to_csv(os.path.join(output_dir, "collapsed_mutations.tsv"), sep='\t')
     pd.DataFrame(all_norm_mut).to_csv(os.path.join(output_dir, "normalized_scaled.tsv"), sep='\t')
     pd.DataFrame(all_scaled_mut).to_csv(os.path.join(output_dir, "scaled_raw.tsv"), sep='\t')
-    pd.DataFrame(all_triplets).to_csv(os.path.join(output_dir, "triplets.tsv"), sep='\t')
+    triplets_df = pd.DataFrame(all_triplets)
+    triplets_df.to_csv(os.path.join(output_dir, "triplets.tsv"), sep='\t')
+    
+    mutations_per_triplet = collapsed_mutations_df.sum() / triplets_df.sum()
+    print("Mutations per triplet from divergence:")
+    for col in mutations_per_triplet.index:
+        print(f"{col.split('__')[0]}: {mutations_per_triplet[col]:.2e}")
+
+    if args.divergence_time:
+        mutation_rates = mutations_per_triplet / (float(args.divergence_time) * 1_000_000)
+        print("Estimated mutation rates per site per year:")
+        for col in mutation_rates.index:
+            print(f"{col.split('__')[0]}: {mutation_rates[col]:.2e}")
+
+
 
 if __name__ == "__main__":
     main()

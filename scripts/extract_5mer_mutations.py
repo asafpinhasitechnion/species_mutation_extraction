@@ -81,7 +81,7 @@ def main():
     json2_path = os.path.join(args.output_dir, f"{args.taxa2}__{args.taxa1}__{args.reference}__5mers.json")
 
     if all(os.path.exists(p) for p in [json1_path, json2_path]) and not args.no_cache:
-        print("✅ 5-mer mutation files exist. Skipping.")
+        print("5-mer mutation files exist. Skipping.")
         return
 
     species_mut1 = defaultdict(int)
@@ -115,7 +115,7 @@ def main():
         json.dump(species_mut1, f, indent=2)
     with open(json2_path, 'w') as f:
         json.dump(species_mut2, f, indent=2)
-    print(f"✅ Written: {json1_path}, {json2_path}")
+    print(f"Written: {json1_path}, {json2_path}")
 
 if __name__ == "__main__":
     main()

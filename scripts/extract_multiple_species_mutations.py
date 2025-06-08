@@ -158,7 +158,7 @@ def extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cach
     data = []
     header = ["chromosome", "position", "left", "right"] + [f"taxa{i}" for i in range(n_species)]
     if os.path.exists(csv_output_path) and not no_cache:
-        print(f"🔍 Loading cached mutations from {csv_output_path}")
+        print(f"Loading cached mutations from {csv_output_path}")
         df = pd.read_csv(csv_output_path)
     else:
         with gzip.open(pileup_file, 'rt') as infile:
@@ -177,15 +177,13 @@ def extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cach
 
         df = pd.DataFrame(data, columns=header)
         df.to_csv(csv_output_path, index=False)
-        print(f"✅ Matching triplet mutation positions saved into {csv_output_path}")
+        print(f"Matching triplet mutation positions saved into {csv_output_path}")
 
 
     mutation_dict = defaultdict(list)
     ambiguous_counter = 0
 
     for _, row in df.iterrows():
-    # for i in range(100000):
-        # row = df.iloc[i]
         tree_copy = tree.copy()
 
         mutation_dict, ambiguous = fitch(
@@ -201,7 +199,7 @@ def extract_mutations(pileup_file, output_dir, n_species, tree, mapping, no_cach
     # === Step 3: Save mutations by branch ===
     for branch_key, mutations in mutation_dict.items():
         csv_path = os.path.join(csv_dir, f"{branch_key}.csv.gz")
-        print(f"💾 Saving mutations for {branch_key} to {csv_path}")
+        print(f"Saving mutations for {branch_key} to {csv_path}")
         df = pd.DataFrame(mutations, columns=["chromosome", "position", "mutation"])
         df.to_csv(csv_path, index=False, header=False, sep="\t", compression="gzip")
         mutation_spectra = dict(df['mutation'].value_counts())
@@ -236,7 +234,7 @@ def memory_efficient_extract_mutations(pileup_file, output_dir, n_species, tree,
                         result = detect_mutations(buffer)
                         if result:
                             writer.writerow(result)
-        print(f"✅ Mutations written to {csv_output_path}")
+        print(f"Mutations written to {csv_output_path}")
     
     mutation_dict = {}
     ambiguous_counter = 0
@@ -247,12 +245,12 @@ def memory_efficient_extract_mutations(pileup_file, output_dir, n_species, tree,
             mutation_update, ambiguous_count = fitch(tree.copy(), row, mapping, mutation_dict, verbose=False)
             ambiguous_counter += ambiguous_count
 
-    print(f"🔍 Total ambiguous mutations: {ambiguous_counter}")
+    print(f"Total ambiguous mutations: {ambiguous_counter}")
 
     # === Step 3: Save mutations by branch ===
     for branch_key, mutations in mutation_dict.items():
         output_path = os.path.join(output_dir, f"{branch_key}.csv.gz")
-        print(f"💾 Saving mutations for {branch_key} to {output_path}")
+        print(f"Saving mutations for {branch_key} to {output_path}")
         df = pd.DataFrame(mutations, columns=["chromosome", "position", "mutation"])
         df.to_csv(output_path, index=False, header=False, sep="\t", compression="gzip")
 
@@ -275,118 +273,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-# # === Step 1: Build symbolic pattern ===
-# def build_symbolic_pattern(bases):
-#     symbols = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S']
-#     base_to_symbol = {}
-#     symbol_to_base = {}
-#     symbol_list = []
-#     next_symbol_idx = 0
-
-#     for b in bases:
-#         if b not in base_to_symbol:
-#             sym = symbols[next_symbol_idx]
-#             base_to_symbol[b] = sym
-#             symbol_to_base[sym] = b
-#             next_symbol_idx += 1
-#         symbol_list.append(base_to_symbol[b])
-
-#     return symbol_list, base_to_symbol, symbol_to_base
-
-# # === Step 2: Pure Fitch implementation for symbolic row ===
-# def recursive_state_check(node, row, mapping):
-#     if node.is_leaf():
-#         node.add_feature("state", {row[f"taxa{mapping[node.name]}"]})
-#         return node.state
-
-#     left_state = recursive_state_check(node.children[0], row, mapping)
-#     right_state = recursive_state_check(node.children[1], row, mapping)
-
-#     intersect = left_state & right_state
-#     node_state = intersect if intersect else left_state | right_state
-#     node.add_feature("state", node_state)
-#     return node_state
-
-
-# def recursive_fitch(node, parent_state, row, ambiguous_count, verbose=False):
-#     mutations = []
-#     next_state = parent_state
-
-#     if parent_state not in node.state:
-#         if len(node.state) > 1:
-#             ambiguous_count += 1
-#             if verbose:
-#                 print(f"{node.name} state is ambiguous: {node.state}.")
-#             return [], ambiguous_count
-#         else:
-#             next_state = list(node.state)[0]
-#             parent_name = node.up.custom_name if node.up else "ROOT"
-#             child_name = node.custom_name
-#             branch_key = f"{parent_name}→{child_name}"
-#             mutation = f"L[{parent_state}>{next_state}]R"
-#             mutations.append((branch_key, 0, mutation))  # position is dummy
-
-#     if not node.is_leaf():
-#         muts_left, ambiguous_count = recursive_fitch(
-#             node.children[0], next_state, row, ambiguous_count, verbose
-#         )
-#         muts_right, ambiguous_count = recursive_fitch(
-#             node.children[1], next_state, row, ambiguous_count, verbose
-#         )
-#         mutations.extend(muts_left)
-#         mutations.extend(muts_right)
-
-#     return mutations, ambiguous_count
-
-
-# def run_fitch_on_symbolic(tree_root, symbolic_row, mapping, verbose=False):
-#     ambiguous_count = 0
-#     root_state = recursive_state_check(tree_root, symbolic_row, mapping)
-
-#     if len(root_state) == 1:
-#         root_base = list(root_state)[0]
-#         return recursive_fitch(tree_root, root_base, symbolic_row, ambiguous_count, verbose)
-#     else:
-#         if verbose:
-#             print(f"Root state is ambiguous: {root_state}. Cannot resolve mutations.")
-#         return [], 1
-
-
-# # === Step 3: Fitch with symbolic cache ===
-# def fitch(tree_root, original_row, mapping, mutation_dict, fitch_cache, verbose=False):
-#     left_base = original_row['left']
-#     right_base = original_row['right']
-#     chrom = original_row['chromosome']
-#     pos = original_row['position']
-
-#     taxa_cols = [col for col in original_row.index if col.startswith("taxa")]
-#     actual_bases = [original_row[col] for col in taxa_cols]
-
-#     symbolic_bases, forward_map, reverse_map = build_symbolic_pattern(actual_bases)
-
-#     symbol_row = pd.Series({col: sym for col, sym in zip(taxa_cols, symbolic_bases)})
-#     symbol_row['left'] = 'L'
-#     symbol_row['right'] = 'R'
-#     symbol_row['position'] = 0
-#     symbol_row['chromosome'] = 'chr'
-
-#     key = tuple(symbolic_bases)
-
-#     if key in fitch_cache:
-#         symbolic_mutations, was_ambiguous = fitch_cache[key]
-#     else:
-#         tree_copy = tree_root.copy()
-#         symbolic_mutations, was_ambiguous = run_fitch_on_symbolic(tree_copy, symbol_row, mapping, verbose)
-#         fitch_cache[key] = (symbolic_mutations, was_ambiguous)
-
-#     if not was_ambiguous:
-#         for branch, _, symbolic_mut in symbolic_mutations:
-#             parent_sym = symbolic_mut[2]
-#             child_sym = symbolic_mut[4]
-#             actual_mut = f"{left_base}[{reverse_map[parent_sym]}>{reverse_map[child_sym]}]{right_base}"
-#             mutation_dict.setdefault(branch, []).append((chrom, pos, actual_mut))
-
-#     return mutation_dict, int(was_ambiguous)
