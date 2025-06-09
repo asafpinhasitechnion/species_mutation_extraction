@@ -1,10 +1,12 @@
 # species_mutation_extraction/mutextractor/pipeline.py
 
+import json
 import os
 
 import pandas as pd
 from genome_manager import Genome
 from alignment_manager import Aligner
+from multiple_species_mutation_extractor_manager import MultipleSpeciesMutationExtractor
 from mutation_extractor_manager import FiveMerExtractor, MutationExtractor, MutationNormalizer, TripletExtractor
 from pileup_manager import Pileup
 from plot_utils import CoveragePlotter, MutationDensityPlotter, MutationSpectraPlotter
@@ -82,7 +84,7 @@ class MutationExtractionPipeline:
                 verbose=self.verbose
             )
             genome.download()
-            genome.generate_fragment_fastq(length=self.params.get("fragment_length", 75), offset=self.params.get("fragment_offset", 75), force=self.no_cache)
+            genome.generate_fragment_fastq(length=self.params.get("fragment_length", 150), offset=self.params.get("fragment_offset", 75), force=self.no_cache)
             self.genomes.append(genome)
 
     def align_species(self):
@@ -257,22 +259,179 @@ class MutationExtractionPipeline:
                                  chromosome=chrom,
                                  output_dir=os.path.join(self.output_dir, 'Plots'),
                                  mutation_category = r"[ACTG][C>T]G")
-            
+
+
+from multiple_species_utils import (
+    parse_species_accession_from_newick,
+    annotate_tree_with_indices,
+    save_annotated_tree,
+)
+from run_phylip import run_phylip
+
+
+class MultiSpeciesMutationPipeline:
+    def __init__(
+        self,
+        newick_tree,
+        base_output_dir="../Output",
+        run_id=None,
+        outgroup=None,
+        no_cache=False,
+        verbose=True,
+        **kwargs,
+    ):
+        self.newick_tree = newick_tree
+        self.base_output_dir = base_output_dir
+        self.run_id = run_id or "multi_species_run"
+        self.output_dir = os.path.join(self.base_output_dir, self.run_id)
+        self.no_cache = no_cache
+        self.verbose = verbose
+        self.params = kwargs
+
+        self.outgroup_name = outgroup
+        self.tree = None
+        self.terminal_mapping = None
+        self.species_dict = {}
+        self.reference = None
+        self.genomes = {}
+        self.alignments = []
+        self.pileup_path = None
+
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def run(self):
+        log("Starting multi-species mutation extraction pipeline...", self.verbose)
+        self.parse_and_annotate_tree()
+        self.download_index_and_fragment()
+        self.align_species_to_outgroup()
+        self.generate_pileup()
+        self._extract_mutations()
+        self._reconstruct_phylogeny()
+        log("Pipeline completed successfully.", self.verbose)
+
+    def parse_and_annotate_tree(self):
+        self.species_dict, default_outgroup = parse_species_accession_from_newick(self.newick_tree)
+        if not self.outgroup_name:
+            self.outgroup_name = default_outgroup
+        self.tree, self.terminal_mapping = annotate_tree_with_indices(self.newick_tree, self.outgroup_name)
+
+        tree_path = os.path.join(self.output_dir, "annotated_tree.nwk")
+        save_annotated_tree(self.tree, tree_path)
+        with open(os.path.join(self.output_dir, "species_mapping.json"), 'w') as f:
+            json.dump(self.terminal_mapping, f, indent=2)
+
+    def download_index_and_fragment(self):
+        for species, accession in self.species_dict.items():
+            genome = Genome(
+                name=species,
+                accession=accession,
+                output_dir=self.output_dir,
+                no_cache=self.no_cache,
+                verbose=self.verbose
+            )
+            genome.download()
+
+            if species == self.outgroup_name:
+                genome.index()
+                self.reference = genome
+            else:
+                genome.generate_fragment_fastq(
+                    length=self.params.get("fragment_length", 75),
+                    offset=self.params.get("fragment_offset", 75),
+                    force=self.no_cache
+                )
+            self.genomes[species] = genome
+
+    def align_species_to_outgroup(self):
+        for species, genome in self.genomes.items():
+            if species == self.outgroup_name:
+                continue
+
+            aligner = Aligner(
+                species_genome=genome,
+                reference_genome=self.reference,
+                base_output_dir=self.output_dir,
+                aligner_name=self.params.get("aligner", "bwa"),
+                cores=self.params.get("cores", None),
+                verbose=self.verbose
+            )
+
+            if self.params.get("streamed", False):
+                aligner.align_streamed(
+                    mapq=self.params.get("mapq", 60),
+                    offset=self.params.get("offset", 75),
+                    continuity=self.params.get("continuity", True),
+                    max_sort_mem=self.params.get("max_samtools_mem", None)
+                )
+            else:
+                aligner.align_disk_cached(
+                    mapq=self.params.get("mapq", 60),
+                    offset=self.params.get("offset", 75),
+                    continuity=self.params.get("continuity", True)
+                )
+
+            self.alignments.append(aligner)
+
+    def generate_pileup(self):
+        pileup = Pileup(
+            outgroup=self.reference,
+            aligners=self.alignments,
+            base_output_dir=self.output_dir,
+            run_id=self.run_id,
+            no_cache=self.no_cache,
+            verbose=self.verbose
+        )
+        self.pileup_path = pileup.generate()
+
+    def _extract_mutations(self):
+        extractor = MultipleSpeciesMutationExtractor(
+        pileup_file=self.pileup_path,
+        output_dir=self.output_dir,
+        n_species=len(self.genomes),
+        newick_tree=self.newick_tree,
+        outgroup=self.outgroup_name,
+        no_cache=False,
+        verbose=True
+        )
+        extractor.extract()
+
+
+    def _reconstruct_phylogeny(self):
+        run_phylip(
+            command='dnapars',
+            df_path=os.path.join(self.output_dir, "matching_bases.csv.gz"),
+            tree_path=os.path.join(self.output_dir, "annotated_tree.nwk"),
+            output_dir=self.output_dir,
+            prefix="multi_species_phylip",
+            input_string="5\nY\n",
+            mapping=self.terminal_mapping
+        )
+
 
 if __name__ == "__main__":
-    species = [
-        ("Drosophila_pseudoobscura", "GCF_009870125.1"),
-        ("Drosophila_miranda", "GCF_003369915.1")
-    ]
-    outgroup = ("Drosophila_helvetica", "GCA_963969585.1")
+    # species = [
+    #     ("Drosophila_pseudoobscura", "GCF_009870125.1"),
+    #     ("Drosophila_miranda", "GCF_003369915.1")
+    # ]
+    # outgroup = ("Drosophila_helvetica", "GCA_963969585.1")
 
-    pipeline = MutationExtractionPipeline(
-        species_list=species,
-        outgroup=outgroup,
-        aligner="bwa",
+    # pipeline = MutationExtractionPipeline(
+    #     species_list=species,
+    #     outgroup=outgroup,
+    #     aligner="bwa",
+    #     base_output_dir="../Output_OO",
+    #     mapq=30, 
+    #     suffix= 'MAPQ30'
+    # )
+    # pipeline.run()
+
+    newick_tree = "(((Drosophila_sechellia|GCF_004382195.2,Drosophila_melanogaster|GCF_000001215.4),Drosophila_mauritiana|GCF_004382145.1),Drosophila_santomea|GCF_016746245.2);"
+
+    run_id = 'drosophila2_run_mutiple_species'
+    pipeline = MultiSpeciesMutationPipeline(newick_tree,
         base_output_dir="../Output_OO",
-        mapq=30, 
-        suffix= 'MAPQ30'
-    )
+        run_id=run_id,
+        outgroup='Drosophila_santomea')
+    
     pipeline.run()
 
