@@ -66,7 +66,7 @@ def scale_counts(d, target_sum=10000):
 def main():
     parser = argparse.ArgumentParser(description="Normalize mutation spectra using triplet contexts.")
     parser.add_argument("--input-dir", required=True, help="Path to the run output directory (containing Mutations/ and Triplets/)")
-    parser.add_argument("--output-dir", help="Optional output dir (default: input-dir/Normalized)")
+    parser.add_argument("--output-dir", help="Optional output dir")
     parser.add_argument("--divergence-time", type=float, help="The divergence time of taxa1 and taxa2 (in million years ago, MYA)")
 
     args = parser.parse_args()
