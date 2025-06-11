@@ -13,28 +13,32 @@ REF_IDX, TAXA1_IDX, TAXA2_IDX = 0, 1, 2
 
 
 class MutationExtractor:
-    def __init__(self, reference, taxon1, taxon2, pileup_file, output_dir,
+    def __init__(self, reference, taxon1, taxon2, pileup_file, mutation_output_dir, triplet_output_dir,
                  no_full_mutations=False, no_cache=False, verbose=True):
         self.reference = reference
         self.taxon1 = taxon1
         self.taxon2 = taxon2
         self.pileup_file = pileup_file
-        self.output_dir = output_dir
+        self.mutation_output_dir = mutation_output_dir
+        self.triplet_output_dir = triplet_output_dir
         self.no_full_mutations = no_full_mutations
         self.no_cache = no_cache
         self.verbose = verbose
 
         self.pileup_file = pileup_file
-        self.out_json1 = os.path.join(self.output_dir, f"{taxon1}__{taxon2}__{reference}__mutations.json")
-        self.out_json2 = os.path.join(self.output_dir, f"{taxon2}__{taxon1}__{reference}__mutations.json")
+        self.out_json1 = os.path.join(self.mutation_output_dir, f"{taxon1}__{taxon2}__{reference}__mutations.json")
+        self.out_json2 = os.path.join(self.mutation_output_dir, f"{taxon2}__{taxon1}__{reference}__mutations.json")
+        self.trip_out_json1 = os.path.join(self.triplet_output_dir, f"{self.taxon1}__{self.taxon2}__{self.reference}__triplets.json")
+        self.trip_out_json2 = os.path.join(self.triplet_output_dir, f"{self.taxon2}__{self.taxon1}__{self.reference}__triplets.json")
 
-        self.csv_path1 = None if no_full_mutations else os.path.join(self.output_dir, f"{taxon1}__{taxon2}__{reference}__mutations.csv.gz")
-        self.csv_path2 = None if no_full_mutations else os.path.join(self.output_dir, f"{taxon2}__{taxon1}__{reference}__mutations.csv.gz")
+        self.csv_path1 = None if no_full_mutations else os.path.join(self.mutation_output_dir, f"{taxon1}__{taxon2}__{reference}__mutations.csv.gz")
+        self.csv_path2 = None if no_full_mutations else os.path.join(self.mutation_output_dir, f"{taxon2}__{taxon1}__{reference}__mutations.csv.gz")
 
     def extract(self):
-        os.makedirs(self.output_dir, exist_ok=True)
+        os.makedirs(self.mutation_output_dir, exist_ok=True)
+        os.makedirs(self.triplet_output_dir, exist_ok=True)
 
-        jsons_exist = all(os.path.exists(p) for p in [self.out_json1, self.out_json2])
+        jsons_exist = all(os.path.exists(p) for p in [self.out_json1, self.out_json2, self.trip_out_json1, self.trip_out_json2])
         csvs_exist = (self.no_full_mutations or
                     all(os.path.exists(p) for p in [self.csv_path1, self.csv_path2]))
 
@@ -44,6 +48,8 @@ class MutationExtractor:
 
         species_mut1 = defaultdict(int)
         species_mut2 = defaultdict(int)
+        species_triplet1 = defaultdict(int)
+        species_triplet2 = defaultdict(int)
 
         rows1, rows2 = [], []
 
@@ -57,7 +63,7 @@ class MutationExtractor:
 
                 if all(qc_flags):
                     triplets = self.extract_triplets(line_fields)
-                    mut1, mut2 = self.detect_mutation_triplet(triplets)
+                    mut1, mut2, trip1, trip2 = self.detect_mutation_triplet(triplets)
                     chrom = line_fields[1][CHR_IDX]
                     pos = int(line_fields[1][POSITION_IDX])
                     context = ''.join(triplets[REF_IDX])
@@ -85,7 +91,11 @@ class MutationExtractor:
                                 "context": context,
                                 "triplet": mut2
                             })
-
+                    if trip1:
+                        species_triplet1[trip1] += 1
+                    if trip2:
+                        species_triplet2[trip2] += 1
+        
         if not self.no_full_mutations:
             if rows1:
                 pd.DataFrame(rows1).to_csv(self.csv_path1, index=False, compression="gzip")
@@ -98,7 +108,14 @@ class MutationExtractor:
             json.dump(species_mut1, f, indent=2)
         with open(self.out_json2, 'w') as f:
             json.dump(species_mut2, f, indent=2)
+        
+        with open(self.trip_out_json1, 'w') as f:
+            json.dump(species_triplet1, f, indent=2)
+        with open(self.trip_out_json2, 'w') as f:
+            json.dump(species_triplet2, f, indent=2)
+
         log(f"Saved mutation counts to {self.out_json1} and {self.out_json2}", self.verbose)
+        log(f"Saved triplet counts to {self.trip_out_json1} and {self.trip_out_json2}", self.verbose)
 
 
     @staticmethod
@@ -123,18 +140,23 @@ class MutationExtractor:
         return context
 
     def detect_mutation_triplet(self, triplets):
-        t1_mut, t2_mut = None, None
+        t1_mut = t2_mut = t1_3mer = t2_3mer = None
+
         if triplets[REF_IDX][PREV_IDX] == triplets[TAXA1_IDX][PREV_IDX] == triplets[TAXA2_IDX][PREV_IDX] and \
            triplets[REF_IDX][NEXT_IDX] == triplets[TAXA1_IDX][NEXT_IDX] == triplets[TAXA2_IDX][NEXT_IDX]:
 
             ref_base = triplets[REF_IDX][CUR_IDX]
             context = triplets[REF_IDX][PREV_IDX] + ref_base + triplets[REF_IDX][NEXT_IDX]
-
             if ref_base == triplets[TAXA1_IDX][CUR_IDX] and ref_base != triplets[TAXA2_IDX][CUR_IDX]:
                 t2_mut = f"{context[0]}[{ref_base}>{triplets[TAXA2_IDX][CUR_IDX]}]{context[2]}"
+                t1_3mer, t2_3mer = context, context
             elif ref_base == triplets[TAXA2_IDX][CUR_IDX] and ref_base != triplets[TAXA1_IDX][CUR_IDX]:
                 t1_mut = f"{context[0]}[{ref_base}>{triplets[TAXA1_IDX][CUR_IDX]}]{context[2]}"
-        return t1_mut, t2_mut
+                t1_3mer, t2_3mer = context, context
+            elif ref_base == triplets[TAXA2_IDX][CUR_IDX] == triplets[TAXA1_IDX][CUR_IDX]:
+                t1_3mer, t2_3mer = context, context
+            
+        return t1_mut, t2_mut, t1_3mer, t2_3mer
 
     @staticmethod
     def quality_check(fields):

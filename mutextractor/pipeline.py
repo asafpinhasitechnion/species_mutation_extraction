@@ -103,15 +103,11 @@ class MutationExtractionPipeline:
             if self.params.get("streamed", False):
                 aligner.align_streamed(
                     mapq=self.params.get("mapq", 60),
-                    offset=self.params.get("offset", 75),
-                    continuity=self.params.get("continuity", True),
                     max_sort_mem=self.params.get("max_samtools_mem", None)
                 )
             else:
                 aligner.align_disk_cached(
                     mapq=self.params.get("mapq", 60),
-                    offset=self.params.get("offset", 75),
-                    continuity=self.params.get("continuity", True)
                 )
             self.alignments.append(aligner)
 
@@ -137,12 +133,13 @@ class MutationExtractionPipeline:
 
 
     def extract_mutations_and_triplets(self):
-        log("Extracting mutations from pileup...", self.verbose)
+        log("Extracting 3mer mutations and triplets from pileup...", self.verbose)
         mutation_extractor = MutationExtractor(reference=self.reference.name,
                               taxon1=self.genomes[0].name,
                               taxon2=self.genomes[1].name,
                               pileup_file=self.pileup_path,
-                              output_dir=os.path.join(self.output_dir, 'Mutations'),
+                              mutation_output_dir=os.path.join(self.output_dir, 'Mutations'),
+                              triplet_output_dir=os.path.join(self.output_dir, 'Triplets'),
                               no_full_mutations=False,
                               no_cache=False,
                               verbose=self.verbose)
@@ -157,15 +154,15 @@ class MutationExtractionPipeline:
                               verbose=self.verbose)
         fivemer_extractor.extract()
 
-        log("Extracting triplets from pileup...", self.verbose)
-        triplet_extractor = TripletExtractor(reference=self.reference.name,
-                              taxon1=self.genomes[0].name,
-                              taxon2=self.genomes[1].name,
-                              pileup_file=self.pileup_path,
-                              output_dir=os.path.join(self.output_dir, 'Triplets'),
-                              no_cache=False,
-                              verbose=self.verbose)
-        triplet_extractor.extract()
+        # log("Extracting triplets from pileup...", self.verbose)
+        # triplet_extractor = TripletExtractor(reference=self.reference.name,
+        #                       taxon1=self.genomes[0].name,
+        #                       taxon2=self.genomes[1].name,
+        #                       pileup_file=self.pileup_path,
+        #                       output_dir=os.path.join(self.output_dir, 'Triplets'),
+        #                       no_cache=False,
+        #                       verbose=self.verbose)
+        # triplet_extractor.extract()
 
         normalizer = MutationNormalizer(
             input_dir=self.output_dir,
@@ -336,7 +333,7 @@ class MultiSpeciesMutationPipeline:
                 self.reference = genome
             else:
                 genome.generate_fragment_fastq(
-                    length=self.params.get("fragment_length", 75),
+                    length=self.params.get("fragment_length", 150),
                     offset=self.params.get("fragment_offset", 75),
                     force=self.no_cache
                 )
@@ -409,29 +406,29 @@ class MultiSpeciesMutationPipeline:
 
 
 if __name__ == "__main__":
-    # species = [
-    #     ("Drosophila_pseudoobscura", "GCF_009870125.1"),
-    #     ("Drosophila_miranda", "GCF_003369915.1")
-    # ]
-    # outgroup = ("Drosophila_helvetica", "GCA_963969585.1")
+    species = [
+        ("Drosophila_pseudoobscura", "GCF_009870125.1"),
+        ("Drosophila_miranda", "GCF_003369915.1")
+    ]
+    outgroup = ("Drosophila_helvetica", "GCA_963969585.1")
 
-    # pipeline = MutationExtractionPipeline(
-    #     species_list=species,
-    #     outgroup=outgroup,
-    #     aligner="bwa",
-    #     base_output_dir="../Output_OO",
-    #     mapq=30, 
-    #     suffix= 'MAPQ30'
-    # )
-    # pipeline.run()
-
-    newick_tree = "(((Drosophila_sechellia|GCF_004382195.2,Drosophila_melanogaster|GCF_000001215.4),Drosophila_mauritiana|GCF_004382145.1),Drosophila_santomea|GCF_016746245.2);"
-
-    run_id = 'drosophila2_run_mutiple_species'
-    pipeline = MultiSpeciesMutationPipeline(newick_tree,
+    pipeline = MutationExtractionPipeline(
+        species_list=species,
+        outgroup=outgroup,
+        aligner="bwa",
         base_output_dir="../Output_OO",
-        run_id=run_id,
-        outgroup='Drosophila_santomea')
-    
+        mapq=60, 
+        suffix= 'MAPQ60'
+    )
     pipeline.run()
+
+    # newick_tree = "(((Drosophila_sechellia|GCF_004382195.2,Drosophila_melanogaster|GCF_000001215.4),Drosophila_mauritiana|GCF_004382145.1),Drosophila_santomea|GCF_016746245.2);"
+
+    # run_id = 'drosophila2_run_mutiple_species'
+    # pipeline = MultiSpeciesMutationPipeline(newick_tree,
+    #     base_output_dir="../Output_OO",
+    #     run_id=run_id,
+    #     outgroup='Drosophila_santomea')
+    
+    # pipeline.run()
 

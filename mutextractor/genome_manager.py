@@ -7,12 +7,12 @@ from Bio import SeqIO
 
 
 class Genome:
-    def __init__(self, name, accession, output_dir, no_cache=False, verbose = True):
+    def __init__(self, name, accession, output_dir, fasta_path = None, no_cache=False, verbose = True):
         self.name = name
         self.accession = accession
         self.output_dir = os.path.join(output_dir, name)
         self.no_cache = no_cache
-        self.fasta_path = os.path.join(self.output_dir, f"{name}.fasta")
+        self.fasta_path = fasta_path if fasta_path else os.path.join(self.output_dir, f"{name}.fasta")
         self.fastq_path = None
         self.verbose = verbose
 
@@ -87,8 +87,8 @@ class Genome:
         log(f"Indexing complete for {self.name}", self.verbose)
 
 
-    def generate_fragment_fastq(self, length=150, offset=75, force=False):
-        output_fastq = os.path.join(self.output_dir, f"{self.name}.fastq")
+    def generate_fragment_fastq(self, length=150, output_fastq = None, offset=75, force=False):
+        output_fastq = output_fastq if output_fastq else os.path.join(self.output_dir, f"{self.name}.fastq")
         
         if os.path.exists(output_fastq) and not force:
             log(f"Fastq for {self.name} already exists. Skipping.", self.verbose)
