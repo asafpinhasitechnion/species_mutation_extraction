@@ -2,6 +2,7 @@
 
 import json
 import os
+import time 
 
 import pandas as pd
 from genome_manager import Genome
