@@ -18,6 +18,7 @@ class MutationExtractionPipeline:
                  species_list,
                  outgroup,
                  aligner="bwa", 
+                 aligner_cmd=None,
                  base_output_dir="../Output", 
                  no_cache = False,
                  verbose = True, 
@@ -44,18 +45,46 @@ class MutationExtractionPipeline:
         self.verbose = verbose
         self.no_cache = no_cache
 
+    # def run(self):
+    #     log("Starting mutation extraction pipeline...", self.verbose)
+
+    #     self.download_index_and_fragment_genomes()
+    #     self.align_species()
+    #     self.generate_pileup()
+    #     self.extract_mutations_and_triplets()
+    #     self.extract_intervals()
+    #     self.run_plots()
+        
+    #     print("Pipeline completed successfully.")
+
+    
     def run(self):
         log("Starting mutation extraction pipeline...", self.verbose)
+        timings = {}
+        start_pipeline = time.time()
 
-        self.download_index_and_fragment_genomes()
-        self.align_species()
-        self.generate_pileup()
-        self.extract_mutations_and_triplets()
-        self.extract_intervals()
-        self.run_plots()
-        
-        # self.analyze_and_plot()
+        def timed_stage(stage_name, func):
+            start = time.time()
+            func()
+            end = time.time()
+            timings[stage_name] = round(end - start, 2)
+            log(f"{stage_name} completed in {timings[stage_name]} seconds", self.verbose)
 
+        timed_stage("Download and Fragment Genomes", self.download_index_and_fragment_genomes)
+        timed_stage("Align Species", self.align_species)
+        timed_stage("Generate Pileup", self.generate_pileup)
+        timed_stage("Extract Mutations and Triplets", self.extract_mutations_and_triplets)
+        timed_stage("Extract Intervals", self.extract_intervals)
+        timed_stage("Run Plots", self.run_plots)
+
+        timings["Total Runtime"] = round(time.time() - start_pipeline, 2)
+
+        # Save timings to JSON
+        timing_path = os.path.join(self.output_dir, "pipeline_timings.json")
+        with open(timing_path, "w") as f:
+            json.dump(timings, f, indent=2)
+
+        log(f"Timing information saved to: {timing_path}", self.verbose)
         print("Pipeline completed successfully.")
 
 

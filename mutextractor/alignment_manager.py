@@ -271,7 +271,7 @@ class Aligner:
 
 
 
-    def align_streamed(self, mapq=60, max_sort_mem=None, continuity = True):
+    def align_streamed(self, mapq=60, low_mapq = 1, max_sort_mem=None, continuity = True):
         if os.path.exists(self.final_bam) and os.path.exists(self.final_bam + '.bai') and not self.no_cache:
             log(f"Streamed alignment already exists: {self.final_bam}", self.verbose)
             return self.final_bam
@@ -292,6 +292,7 @@ class Aligner:
                 with_continuity_filter_sam(
                 input_stream=reader,
                 output_stream=writer,
+                low_mapq=low_mapq,
                 mapq_threshold=mapq,
                 mapq_hist_folder=self.plots_dir,
                 hist_name=self.hist_name,
@@ -314,7 +315,7 @@ class Aligner:
         log(f"Finished (streamed): {self.final_bam}", self.verbose)
         return self.final_bam
 
-    def align_disk_cached(self, mapq=60, continuity = True):
+    def align_disk_cached(self, mapq=60, low_mapq=1, continuity = True):
         # Step 1: Align and sort raw.bam
         if not os.path.exists(self.raw_bam) or self.no_cache:
             cmd = self.aligner_cmd_template.replace("{ref}", self.reference_fasta).replace("{fq}", self.fastq).replace("{cores}", str(self.cores))
@@ -341,6 +342,7 @@ class Aligner:
                     input_stream=TextIOWrapper(view_proc.stdout),
                     output_stream=TextIOWrapper(sort_proc.stdin),
                     mapq_threshold=mapq,
+                    low_mapq=low_mapq,
                     mapq_hist_folder=self.plots_dir,
                     hist_name=self.hist_name,
                     verbose=self.verbose,
