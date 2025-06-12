@@ -12,6 +12,7 @@ from mutation_extractor_manager import FiveMerExtractor, MutationExtractor, Muta
 from pileup_manager import Pileup
 from plot_utils import CoveragePlotter, MutationDensityPlotter, MutationSpectraPlotter
 from utils import get_top_n_chromosomes, log
+import psutil
 import pysam
 
 class MutationExtractionPipeline:
@@ -62,14 +63,26 @@ class MutationExtractionPipeline:
     def run(self):
         log("Starting mutation extraction pipeline...", self.verbose)
         timings = {}
+        memory_log = {}
+        process = psutil.Process(os.getpid())
         start_pipeline = time.time()
 
+        def get_memory():
+            return round(process.memory_info().rss / (1024 ** 2), 2)  # In MB
+
         def timed_stage(stage_name, func):
+            log(f"--- Starting: {stage_name} ---", self.verbose)
+            mem_before = get_memory()
             start = time.time()
             func()
+            gc.collect()  # Clean up memory after each stage
             end = time.time()
+            mem_after = get_memory()
+
             timings[stage_name] = round(end - start, 2)
+            memory_log[stage_name] = {"start_MB": mem_before, "end_MB": mem_after}
             log(f"{stage_name} completed in {timings[stage_name]} seconds", self.verbose)
+            log(f"Memory usage: {mem_before} → {mem_after} MB", self.verbose)
 
         timed_stage("Download and Fragment Genomes", self.download_index_and_fragment_genomes)
         timed_stage("Align Species", self.align_species)
@@ -78,15 +91,16 @@ class MutationExtractionPipeline:
         timed_stage("Extract Intervals", self.extract_intervals)
         timed_stage("Run Plots", self.run_plots)
 
-        timings["Total Runtime"] = round(time.time() - start_pipeline, 2)
+        total_runtime = round(time.time() - start_pipeline, 2)
+        timings["Total Runtime"] = total_runtime
+        memory_log["Total Runtime"] = {"final_MB": get_memory()}
 
-        # Save timings to JSON
         timing_path = os.path.join(self.output_dir, "pipeline_timings.json")
         with open(timing_path, "w") as f:
-            json.dump(timings, f, indent=2)
+            json.dump({"timings": timings, "memory": memory_log}, f, indent=2)
 
-        log(f"Timing information saved to: {timing_path}", self.verbose)
-        print("Pipeline completed successfully.")
+        log(f"Timing and memory info saved to: {timing_path}", self.verbose)
+        log("Pipeline completed successfully.", self.verbose)
 
 
     def download_index_and_fragment_genomes(self):
@@ -140,6 +154,7 @@ class MutationExtractionPipeline:
                     mapq=self.params.get("mapq", 60),
                 )
             self.alignments.append(aligner)
+            
 
 
     def generate_pileup(self):

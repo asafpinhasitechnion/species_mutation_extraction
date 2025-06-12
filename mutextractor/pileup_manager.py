@@ -34,11 +34,23 @@ class Pileup:
         cmd = ["samtools", "mpileup", "-f", self.ref_fasta, "-B", "-d", "100"] + \
             [bam.final_bam for bam in self.bams]
 
-        with open(self.pileup_path, "wb") as out:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-            gzip_proc = subprocess.Popen(["gzip"], stdin=proc.stdout, stdout=out)
-            proc.stdout.close()
-            gzip_proc.communicate()
+        # Use a temporary file for atomic write
+        tmp_path = self.pileup_path + ".tmp"
 
-        log(f"Pileup written to: {self.pileup_path}", self.verbose)
+        try:
+            with open(tmp_path, "wb") as out:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                gzip_proc = subprocess.Popen(["gzip"], stdin=proc.stdout, stdout=out)
+                proc.stdout.close()
+                gzip_proc.communicate()
+
+            # Rename tmp to final output only if gzip succeeded
+            os.rename(tmp_path, self.pileup_path)
+            log(f"Pileup written to: {self.pileup_path}", self.verbose)
+
+        except Exception as e:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise RuntimeError(f"Failed to generate pileup: {e}")
+
         return self.pileup_path

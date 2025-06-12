@@ -3,7 +3,7 @@ import sys
 
 def log(message, verbose=True):
     if verbose:
-        print(message)
+        print(message, flush=True)
 
 
 def run_cmd(cmd, shell=False, verbose = True):
