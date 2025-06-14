@@ -3,8 +3,10 @@
 import json
 import os
 import time 
+import gc
 
 import pandas as pd
+from cleanup_manager import PipelineCleaner
 from genome_manager import Genome
 from alignment_manager import Aligner
 from multiple_species_mutation_extractor_manager import MultipleSpeciesMutationExtractor
@@ -29,6 +31,7 @@ class MutationExtractionPipeline:
         self.species_list = species_list  # list of (name, accession)
         self.outgroup = outgroup          # (name, accession)
         self.aligner = aligner
+        self.aligner_cmd = aligner_cmd
         self.run_id = run_id
         if run_id is None:
             self.run_id = '__'.join([species[0] for species in [outgroup] + species_list])
@@ -46,18 +49,6 @@ class MutationExtractionPipeline:
         self.mutations = None
         self.verbose = verbose
         self.no_cache = no_cache
-
-    # def run(self):
-    #     log("Starting mutation extraction pipeline...", self.verbose)
-
-    #     self.download_index_and_fragment_genomes()
-    #     self.align_species()
-    #     self.generate_pileup()
-    #     self.extract_mutations_and_triplets()
-    #     self.extract_intervals()
-    #     self.run_plots()
-        
-    #     print("Pipeline completed successfully.")
 
     
     def run(self):
@@ -90,6 +81,7 @@ class MutationExtractionPipeline:
         timed_stage("Extract Mutations and Triplets", self.extract_mutations_and_triplets)
         timed_stage("Extract Intervals", self.extract_intervals)
         timed_stage("Run Plots", self.run_plots)
+        timed_stage("Cleanup files", self.cleanup)
 
         total_runtime = round(time.time() - start_pipeline, 2)
         timings["Total Runtime"] = total_runtime
@@ -104,7 +96,7 @@ class MutationExtractionPipeline:
 
 
     def download_index_and_fragment_genomes(self):
-        log("Downloading, indexing, and fragmenting genomes...", self.verbose)
+        # log("Downloading, indexing, and fragmenting genomes...", self.verbose)
 
         # Reference genome (outgroup)
         ref_name, ref_acc = self.outgroup
@@ -132,7 +124,7 @@ class MutationExtractionPipeline:
             self.genomes.append(genome)
 
     def align_species(self):
-        log("Aligning species to reference...", self.verbose)
+        # log("Aligning species to reference...", self.verbose)
 
         for genome in self.genomes:
             aligner = Aligner(
@@ -158,7 +150,7 @@ class MutationExtractionPipeline:
 
 
     def generate_pileup(self):
-        print("Generating pileup from alignments...")
+        # log("Generating pileup from alignments...", self.verbose)
 
         # Ensure aligners were run and final BAMs are available
         for aligner in self.alignments:
@@ -173,12 +165,14 @@ class MutationExtractionPipeline:
             no_cache=self.no_cache,
             verbose=self.verbose
         )
-
+        
+        self.pileup = pileup_generator
+        
         self.pileup_path = pileup_generator.generate()
 
 
     def extract_mutations_and_triplets(self):
-        log("Extracting 3mer mutations and triplets from pileup...", self.verbose)
+        # log("Extracting 3mer mutations and triplets from pileup...", self.verbose)
         mutation_extractor = MutationExtractor(reference=self.reference.name,
                               taxon1=self.genomes[0].name,
                               taxon2=self.genomes[1].name,
@@ -217,7 +211,6 @@ class MutationExtractionPipeline:
         normalizer.normalize()
 
     def _extract_bam_intervals(self, input_bam, output_dir, sorted=False, merge=False, no_cache=False):
-            print(output_dir)
             os.makedirs(output_dir, exist_ok=True)
 
             base_name = os.path.basename(input_bam).rsplit(".", 1)[0]
@@ -285,7 +278,7 @@ class MutationExtractionPipeline:
         mutation_density_plotter = MutationDensityPlotter(fai_file=fai_file)
 
         top_chroms = get_top_n_chromosomes(fai_file, n=3)
-        print("Plotting coverage and mutation density for top chromosomes...")
+        log("Plotting coverage and mutation density for top chromosomes...", self.verbose)
         for chrom in top_chroms:
             print(f"Plotting for {chrom}...")
 
@@ -301,6 +294,10 @@ class MutationExtractionPipeline:
                                  chromosome=chrom,
                                  output_dir=os.path.join(self.output_dir, 'Plots'),
                                  mutation_category = r"[ACTG][C>T]G")
+            
+    def cleanup(self):
+        cleaner = PipelineCleaner(self.genomes + [self.reference], self.alignments, self.pileup, verbose=True)
+        cleaner.run(bams=True, pileup=True, genomes=True)
 
 
 from multiple_species_utils import (

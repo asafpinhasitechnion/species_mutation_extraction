@@ -288,7 +288,7 @@ class MutationDensityPlotter:
         df = pd.read_csv(mutation_file, compression='infer')
         df = df[df['chromosome'] == chrom]
         if mut_regex:
-            df = df[df["triplet"].str.contains(mut_regex, regex=True, na=False)]
+            df = df[df["mutation"].str.contains(mut_regex, regex=True, na=False)]
 
         starts = np.arange(0, chrom_length - bin_size + 1, slide)
         mutation_counts = [

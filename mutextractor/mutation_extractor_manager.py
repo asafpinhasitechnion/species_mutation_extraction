@@ -51,9 +51,17 @@ class MutationExtractor:
         species_triplet1 = defaultdict(int)
         species_triplet2 = defaultdict(int)
 
-        rows1, rows2 = [], []
+        csv1 = csv2 = None
+        if not self.no_full_mutations:
+            header = "chromosome,position,mutation\n"
+            csv1 = gzip.open(self.csv_path1, 'wt')
+            csv1.write(header)
+
+            csv2 = gzip.open(self.csv_path2, 'wt')
+            csv2.write(header)
 
         with gzip.open(self.pileup_file, 'rt') as f:
+
             line_fields = [None, self.parse_line(f.readline()), self.parse_line(f.readline())]
             qc_flags = [False, self.quality_check(line_fields[1]), self.quality_check(line_fields[2])]
 
@@ -66,43 +74,24 @@ class MutationExtractor:
                     mut1, mut2, trip1, trip2 = self.detect_mutation_triplet(triplets)
                     chrom = line_fields[1][CHR_IDX]
                     pos = int(line_fields[1][POSITION_IDX])
-                    context = ''.join(triplets[REF_IDX])
-                    ref_base = triplets[REF_IDX][CUR_IDX]
 
                     if mut1:
                         species_mut1[mut1] += 1
-                        if not self.no_full_mutations:
-                            rows1.append({
-                                "chromosome": chrom,
-                                "position": pos,
-                                "reference_base": ref_base,
-                                "mutated_base": triplets[TAXA1_IDX][CUR_IDX],
-                                "context": context,
-                                "triplet": mut1
-                            })
+                        csv1.write(f"{chrom},{pos},{mut1}\n")
+
                     if mut2:
                         species_mut2[mut2] += 1
-                        if not self.no_full_mutations:
-                            rows2.append({
-                                "chromosome": chrom,
-                                "position": pos,
-                                "reference_base": ref_base,
-                                "mutated_base": triplets[TAXA2_IDX][CUR_IDX],
-                                "context": context,
-                                "triplet": mut2
-                            })
+                        csv2.write(f"{chrom},{pos},{mut2}\n")
+
                     if trip1:
                         species_triplet1[trip1] += 1
                     if trip2:
                         species_triplet2[trip2] += 1
         
-        if not self.no_full_mutations:
-            if rows1:
-                pd.DataFrame(rows1).to_csv(self.csv_path1, index=False, compression="gzip")
-            if rows2:
-                pd.DataFrame(rows2).to_csv(self.csv_path2, index=False, compression="gzip")
-            if rows1 and rows2:
-                log(f"Full mutation CSV written to: {self.csv_path1} and {self.csv_path2}", self.verbose)
+        if csv1:
+            csv1.close()
+        if csv2:
+            csv2.close()
 
         with open(self.out_json1, 'w') as f:
             json.dump(species_mut1, f, indent=2)
